@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import { ProcessVideoJobUseCase } from './application/ProcessVideoJobUseCase.js';
 import { TranscribeChunkUseCase } from './application/TranscribeChunkUseCase.js';
 import type { Env } from './config/env.js';
@@ -33,12 +34,21 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
       ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
     },
     bodyLimit: 1024 * 1024,
+    trustProxy: env.TRUST_PROXY,
   });
   const logger = app.log as unknown as ILogger;
 
   await app.register(cors, {
     origin: env.CORS_ORIGINS.map(toOriginMatcher),
     allowedHeaders: ['Content-Type', 'X-OpenAI-Api-Key', 'X-Groq-Api-Key', 'X-Summary-Provider'],
+  });
+
+  await app.register(rateLimit, {
+    max: env.RATE_LIMIT_PER_MINUTE,
+    timeWindow: '1 minute',
+    // Ошибку отдаёт общий обработчик ниже (единый формат { error: { code, message } })
+    errorResponseBuilder: (_req, context) =>
+      new AppError('RATE_LIMITED', `Слишком много запросов с вашего адреса. Попробуйте через ${Math.ceil(context.ttl / 60000)} мин.`),
   });
 
   // Аудио-фрагменты real-time приходят «сырым» телом
@@ -89,7 +99,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   const queue = new InMemoryJobQueue(processor, repository, logger.child({ component: 'queue' }), env.MAX_CONCURRENT_JOBS, env.JOB_TTL_MINUTES * 60 * 1000);
 
   await app.register(healthRoutes({ ytDlp: () => ytDlp.version(), ffmpeg: () => ffmpeg.available(), localWhisper: localWhisper !== null }));
-  await app.register(transcribeRoutes({ queue, transcribeChunk: new TranscribeChunkUseCase(speech, workDirs, logger.child({ component: 'chunk' })) }));
+  await app.register(transcribeRoutes({ queue, allowedPlatforms: env.ALLOWED_PLATFORMS, jobsPerHour: env.JOBS_PER_HOUR_PER_IP, transcribeChunk: new TranscribeChunkUseCase(speech, workDirs, logger.child({ component: 'chunk' })) }));
 
   app.addHook('onClose', async () => {
     queue.stop();

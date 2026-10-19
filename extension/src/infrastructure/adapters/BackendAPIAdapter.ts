@@ -15,7 +15,9 @@ import type { VideoType } from '@domain/valueObjects/VideoType';
 export class BackendUnavailableError extends DomainError {
   constructor(baseUrl: string) {
     super(
-      `Сервер VideoNote не отвечает (${baseUrl}). Запустите его: двойной клик по start-backend в папке программы. Адрес сервера можно поменять в настройках ⚙️.`,
+      /localhost|127\.0\.0\.1/.test(baseUrl)
+        ? `Сервер VideoNote не отвечает (${baseUrl}). Запустите его: двойной клик по start-backend в папке программы. Адрес сервера можно поменять в настройках ⚙️.`
+        : `Сервер VideoNote (${baseUrl}) сейчас недоступен — попробуйте через несколько минут. Видео YouTube работают и без сервера.`,
       'BACKEND_UNAVAILABLE',
     );
   }

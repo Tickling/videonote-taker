@@ -4,6 +4,7 @@ import type { ISettingsRepository } from '@domain/ports/ISettingsRepository';
 import { SummaryProvider, TranscriptionProvider } from '@domain/valueObjects/Providers';
 import { DEFAULT_SETTINGS, normalizeApiKey, type UserSettings } from '@domain/valueObjects/UserSettings';
 import { isVideoType } from '@domain/valueObjects/VideoType';
+import { buildConfig } from '../config';
 import { noteKey, STORAGE_KEYS } from '../messaging/messages';
 import { fromDto, toDto, type VideoNoteDto } from './noteMapper';
 
@@ -48,7 +49,7 @@ function pickEnum<T extends string>(value: unknown, allowed: readonly T[], fallb
   return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-export function sanitizeSettings(raw: unknown): UserSettings {
+export function sanitizeSettings(raw: unknown, defaultBackendUrl: string = buildConfig.defaultBackendUrl): UserSettings {
   const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
   return {
     transcriptionProvider: pickEnum(r['transcriptionProvider'], Object.values(TranscriptionProvider), DEFAULT_SETTINGS.transcriptionProvider),
@@ -57,7 +58,7 @@ export function sanitizeSettings(raw: unknown): UserSettings {
     groqApiKey: normalizeApiKey(typeof r['groqApiKey'] === 'string' ? r['groqApiKey'] : null),
     defaultLanguage: typeof r['defaultLanguage'] === 'string' ? r['defaultLanguage'] : DEFAULT_SETTINGS.defaultLanguage,
     defaultVideoType: isVideoType(r['defaultVideoType']) ? r['defaultVideoType'] : DEFAULT_SETTINGS.defaultVideoType,
-    backendUrl: typeof r['backendUrl'] === 'string' && r['backendUrl'] ? r['backendUrl'] : DEFAULT_SETTINGS.backendUrl,
+    backendUrl: typeof r['backendUrl'] === 'string' && r['backendUrl'] ? r['backendUrl'] : defaultBackendUrl,
   };
 }
 

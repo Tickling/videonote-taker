@@ -8,6 +8,7 @@ import {
   type GuideName,
   type OffscreenEvent,
 } from '@infrastructure/messaging/messages';
+import { injectContentScripts } from '@infrastructure/messaging/injectContentScripts';
 import { RealtimeController } from './realtime';
 import { TaskRunner, toErrorPayload } from './taskRunner';
 
@@ -27,6 +28,11 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === chrome.runtime.OnInstalledReason.INSTALL) {
     // Первая установка: сразу показываем настройки, чтобы добавить бесплатный ключ Groq
     await chrome.runtime.openOptionsPage();
+  }
+  // Вкладки YouTube, открытые до установки/обновления, получают скрипты расширения без F5
+  const tabs = await chrome.tabs.query({ url: ['https://www.youtube.com/*', 'https://m.youtube.com/*'] });
+  for (const tab of tabs) {
+    if (tab.id !== undefined) await injectContentScripts(tab.id).catch((error: unknown) => log.warn('inject failed', { tab: tab.id, error: String(error) }));
   }
   // Задачи, прерванные перезапуском service worker, помечаем как прерванные
   const all = await chrome.storage.local.get(null);

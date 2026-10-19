@@ -141,7 +141,7 @@ function playerResponse(id, withCaptions) {
 }
 function watchPage(id) {
   const withCaptions = !/^(nosubs|nocaps)/.test(id);
-  const known = id === 'lesson0001' || id === 'capture0001' || /^(nosubs|nocaps)/.test(id);
+  const known = id === 'lesson0001' || id === 'capture0001' || /^(nosubs|nocaps|broken)/.test(id);
   const data = withCaptions ? { engagementPanels: [{ x: { getTranscriptEndpoint: { params: `P_${id}` } } }] } : {};
   const title = id === 'capture0001' ? 'Видео с перехватом субтитров' : 'Основы Python за 10 минут';
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title} - YouTube</title>
@@ -157,7 +157,7 @@ fetch("/e2e-video.webm").then(r=>r.blob()).then(b=>{document.querySelector("vide
 document.querySelector('.ytp-subtitles-button').addEventListener('click', (e) => {
   const on = e.target.getAttribute('aria-pressed') !== 'true';
   e.target.setAttribute('aria-pressed', String(on));
-  if (on) { const x = new XMLHttpRequest(); x.open('GET', '/api/timedtext?v=${id}&lang=ru&fmt=json3&pot=SIGNED'); x.send(); }
+  if (on && !'${id}'.startsWith('broken')) { const x = new XMLHttpRequest(); x.open('GET', '/api/timedtext?v=${id}&lang=ru&fmt=json3&pot=SIGNED'); x.send(); }
 });
 </script></body></html>`;
 }
@@ -325,6 +325,22 @@ const ccState = await capturePage.locator('.ytp-subtitles-button').getAttribute(
 check('субтитры перехвачены у плеера, кнопка CC вернулась в исходное состояние', ccState === 'false', `aria-pressed=${ccState}`);
 await capturePage.close();
 
+// YouTube, где не сработал ни один способ: быстрая понятная ошибка с причинами, сервер не вызывается
+const brokenPage = await context.newPage();
+watch(brokenPage);
+await brokenPage.goto('https://www.youtube.com/watch?v=broken0001');
+await brokenPage.bringToFront();
+await brokenPage.locator('#videonote-taker-root .launcher').click();
+const brokenSidebar = brokenPage.frameLocator('#videonote-taker-root iframe.panel');
+const brokenStarted = Date.now();
+await brokenSidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
+const brokenError = brokenSidebar.getByText(/Не удалось получить субтитры YouTube/);
+await brokenError.waitFor({ timeout: 30000 });
+const brokenText = (await brokenError.textContent()) ?? '';
+check('YouTube без доступных субтитров → быстрая ошибка с причинами, без зависания', Date.now() - brokenStarted < 25000 && brokenText.includes('панель') && brokenText.includes('плеер'), brokenText.slice(brokenText.indexOf('строку:') + 8, brokenText.indexOf('строку:') + 160));
+await brokenPage.screenshot({ path: join(out, '9-youtube-error.png') });
+await brokenPage.close();
+
 // 3. Popup: видео без субтитров, история
 const popup = await context.newPage();
 watch(popup);
@@ -340,10 +356,10 @@ await popup.screenshot({ path: join(out, '6-popup-no-subtitles.png') });
 await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/');
 await popup.getByText('✓ Rutube').waitFor();
 check('popup: автоопределение платформы Rutube', true);
-await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://www.youtube.com/watch?v=private0001');
+await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://vk.com/video-999_1');
 await popup.getByRole('button', { name: /Создать конспект/ }).click();
 await popup.getByText(/приватное/).waitFor({ timeout: 15000 });
-check('popup: приватное видео → понятная ошибка', true);
+check('popup: приватное видео VK (через сервер) → понятная ошибка', true);
 
 await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://youtu.be/lesson0001');
 await popup.getByText('Основы Python за 10 минут').first().waitFor();

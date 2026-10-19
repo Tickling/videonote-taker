@@ -3,6 +3,9 @@
 export {};
 
 const SOURCE = 'vnt-main';
+const FLAG = '__videonoteTimedtextHook';
+const already = (window as unknown as Record<string, unknown>)[FLAG] === true;
+(window as unknown as Record<string, unknown>)[FLAG] = true;
 
 function report(url: string, body: string): void {
   if (!body) return;
@@ -14,7 +17,7 @@ function isTimedText(url: string): boolean {
 }
 
 const originalFetch = window.fetch;
-window.fetch = async function patchedFetch(this: typeof window, ...args: Parameters<typeof fetch>): Promise<Response> {
+if (!already) window.fetch = async function patchedFetch(this: typeof window, ...args: Parameters<typeof fetch>): Promise<Response> {
   const response = await originalFetch.apply(this, args);
   try {
     const input = args[0];
@@ -33,12 +36,15 @@ window.fetch = async function patchedFetch(this: typeof window, ...args: Paramet
 };
 
 const originalOpen = XMLHttpRequest.prototype.open;
-XMLHttpRequest.prototype.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
+if (!already) XMLHttpRequest.prototype.open = function patchedOpen(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
   const href = typeof url === 'string' ? url : url.href;
   if (isTimedText(href)) {
     this.addEventListener('load', () => {
       try {
-        if (this.status === 200 && (this.responseType === '' || this.responseType === 'text')) report(href, this.responseText);
+        if (this.status !== 200) return;
+        if (this.responseType === '' || this.responseType === 'text') report(href, this.responseText);
+        else if (this.responseType === 'json') report(href, JSON.stringify(this.response));
+        else if (this.responseType === 'arraybuffer' && this.response instanceof ArrayBuffer) report(href, new TextDecoder().decode(this.response));
       } catch {
         // ignore
       }

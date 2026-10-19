@@ -14,8 +14,14 @@ export const alias = {
   '@shared': r('../shared/src'),
 };
 
+// Сборка для Chrome Web Store: без доступа к localhost (публичный сервер отвечает по CORS)
+const isStoreBuild = process.env['VITE_STORE_BUILD'] === 'true';
+const buildManifest = isStoreBuild
+  ? { ...manifest, host_permissions: manifest.host_permissions.filter((h) => !h.startsWith('http://localhost')) }
+  : manifest;
+
 export default defineConfig({
-  plugins: [react(), crx({ manifest })],
+  plugins: [react(), crx({ manifest: buildManifest })],
   resolve: { alias },
   build: {
     outDir: 'dist',

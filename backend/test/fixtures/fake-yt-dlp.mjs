@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const url = args[args.length - 1] ?? '';
-const id = url.match(/v=([\w-]+)/)?.[1] ?? 'unknown';
+const id = url.match(/v=([\w-]+)/)?.[1] ?? (url.includes('video-999_') ? 'private-vk' : url.match(/video(-?\d+_\d+)/)?.[1] ?? 'unknown');
 const arg = (name) => args[args.indexOf(name) + 1];
 
 if (args.includes('--help')) {

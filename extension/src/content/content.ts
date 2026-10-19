@@ -254,7 +254,8 @@ setInterval(() => {
 }, 800);
 
 function mount(): void {
-  if (document.getElementById(host.id)) return;
+  // Кнопка от прошлой версии расширения (после обновления) больше не работает — заменяем
+  document.getElementById(host.id)?.remove();
   (document.body ?? document.documentElement).appendChild(host);
   updateLauncher();
   log.info('mounted', { host: location.hostname, videoPage: isVideoPage() });

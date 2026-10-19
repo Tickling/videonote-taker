@@ -240,7 +240,7 @@ async function viaTranscriptPanel(page: WatchPageData, language: string, fetchFn
     body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: page.clientVersion, hl: language } }, params: page.transcriptParams }),
     credentials: 'include',
   });
-  if (!response.ok) throw new CaptionsFetchError(`get_transcript HTTP ${response.status}`);
+  if (!response.ok) throw new CaptionsFetchError(`HTTP ${response.status}`);
   return parseTranscriptResponse(await response.json());
 }
 
@@ -248,7 +248,7 @@ async function viaCaptionTrack(track: CaptionTrack, fetchFn: FetchFn): Promise<R
   const url = new URL(track.baseUrl, 'https://www.youtube.com');
   url.searchParams.set('fmt', 'json3');
   const response = await fetchFn(url.toString(), { credentials: 'include' });
-  if (!response.ok) throw new CaptionsFetchError(`timedtext HTTP ${response.status}`);
+  if (!response.ok) throw new CaptionsFetchError(`HTTP ${response.status}`);
   return parseCaptionBody(await response.text());
 }
 
@@ -262,26 +262,32 @@ export async function transcriptFromWatchHtml(html: string, language: string, fe
   const track = chooseCaptionTrack(page.tracks, language);
   const base = { title: page.title, duration: page.duration, language: track?.languageCode.split('-')[0] ?? language };
   const errors: string[] = [];
+  const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error)).replace(/^CaptionsFetchError:\s*/, '');
 
-  try {
-    const segments = await viaTranscriptPanel(page, language, fetchFn);
-    if (segments.length > 0) return { ...base, segments, method: 'transcript-panel' };
-  } catch (error) {
-    errors.push(String(error));
-  }
+  if (!page.hasCaptionsInfo) errors.push('страница: нет данных плеера');
+  if (page.transcriptParams) {
+    try {
+      const segments = await viaTranscriptPanel(page, language, fetchFn);
+      if (segments.length > 0) return { ...base, segments, method: 'transcript-panel' };
+      errors.push('панель «Расшифровка»: пусто');
+    } catch (error) {
+      errors.push(`панель «Расшифровка»: ${reason(error)}`);
+    }
+  } else errors.push('панель «Расшифровка»: нет');
   if (track) {
     try {
       const segments = await viaCaptionTrack(track, fetchFn);
       if (segments.length > 0) return { ...base, segments, method: 'caption-track' };
+      errors.push('дорожка субтитров: пустой ответ');
     } catch (error) {
-      errors.push(String(error));
+      errors.push(`дорожка субтитров: ${reason(error)}`);
     }
-  }
-  throw new CaptionsFetchError(`Не удалось получить субтитры из браузера${errors.length ? `: ${errors.join('; ')}` : ''}`);
+  } else errors.push(`дорожек субтитров: ${page.tracks.length}`);
+  throw new CaptionsFetchError(errors.join('; '));
 }
 
 export async function fetchWatchHtml(videoId: string, language: string, fetchFn: FetchFn): Promise<string> {
   const response = await fetchFn(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&hl=${language}`, { credentials: 'include' });
-  if (!response.ok) throw new CaptionsFetchError(`watch HTTP ${response.status}`);
+  if (!response.ok) throw new CaptionsFetchError(`страница видео: HTTP ${response.status}`);
   return response.text();
 }

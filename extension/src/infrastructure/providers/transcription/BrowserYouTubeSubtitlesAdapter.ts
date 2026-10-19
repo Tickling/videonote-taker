@@ -4,6 +4,7 @@ import type { ITranscriptionService, TranscriptionInput, TranscriptionResult } f
 import { Timestamp } from '@domain/valueObjects/Timestamp';
 import { VideoPlatform } from '@domain/valueObjects/VideoPlatform';
 import { VideoUrl } from '@domain/valueObjects/VideoUrl';
+import { injectContentScripts } from '../../messaging/injectContentScripts';
 import type { ContentCommand } from '../../messaging/messages';
 import { CaptionsFetchError, NoCaptionsError, fetchWatchHtml, transcriptFromWatchHtml, type YouTubeTranscript } from './youtubeCaptions';
 
@@ -38,6 +39,7 @@ export class BrowserYouTubeSubtitlesAdapter {
 
   async transcribe(videoUrl: VideoUrl, language: string): Promise<TranscriptionResult> {
     const videoId = videoUrl.getVideoId();
+    const problems: string[] = [];
     const reply = await this.viaTab(videoUrl, videoId, language);
     if (reply) {
       if (reply.ok) {
@@ -46,11 +48,20 @@ export class BrowserYouTubeSubtitlesAdapter {
       }
       if (reply.reason === 'no_captions') throw new NoCaptionsError();
       this.logger.warn('tab captions failed, trying from extension', { message: reply.message });
+      problems.push(`вкладка — ${reply.message}`);
+    } else {
+      problems.push('вкладка YouTube не найдена');
     }
-    const html = await fetchWatchHtml(videoId, language, (input, init) => fetch(input, init));
-    const transcript = await transcriptFromWatchHtml(html, language, (input, init) => fetch(input, init));
-    this.logger.info('youtube captions from extension', { method: transcript.method, segments: transcript.segments.length });
-    return toResult(transcript, language);
+    try {
+      const html = await fetchWatchHtml(videoId, language, (input, init) => fetch(input, init));
+      const transcript = await transcriptFromWatchHtml(html, language, (input, init) => fetch(input, init));
+      this.logger.info('youtube captions from extension', { method: transcript.method, segments: transcript.segments.length });
+      return toResult(transcript, language);
+    } catch (error) {
+      if (error instanceof NoCaptionsError) throw error;
+      problems.push(`расширение — ${error instanceof Error ? error.message : String(error)}`);
+    }
+    throw new CaptionsFetchError(problems.join(' | '));
   }
 
   /** Вкладка с этим видео (лучше всего — плеер может отдать субтитры сам) или любая вкладка YouTube. */
@@ -64,12 +75,21 @@ export class BrowserYouTubeSubtitlesAdapter {
     const sameVideo = tabs.find((t) => t.url && VideoUrl.tryCreate(t.url)?.equals(videoUrl));
     const target = sameVideo ?? tabs.find((t) => t.status === 'complete');
     if (target?.id === undefined) return null;
+    const ask = async (tabId: number): Promise<CaptionsReply | null> =>
+      ((await chrome.tabs.sendMessage(tabId, { type: 'extract-youtube-captions', videoId, language } satisfies ContentCommand)) as CaptionsReply | undefined) ?? null;
     try {
-      const reply = (await chrome.tabs.sendMessage(target.id, { type: 'extract-youtube-captions', videoId, language } satisfies ContentCommand)) as CaptionsReply | undefined;
-      return reply ?? null;
+      return await ask(target.id);
     } catch (error) {
-      this.logger.warn('no content script in youtube tab', { error: String(error) });
-      return null;
+      // Вкладка открыта до установки/обновления расширения — подключаемся к ней и спрашиваем снова
+      this.logger.warn('no content script in youtube tab, injecting', { error: String(error) });
+      try {
+        await injectContentScripts(target.id);
+        await new Promise((r) => setTimeout(r, 300));
+        return await ask(target.id);
+      } catch (retryError) {
+        this.logger.warn('content script injection failed', { error: String(retryError) });
+        return null;
+      }
     }
   }
 }
@@ -80,6 +100,8 @@ export class PreferBrowserSubtitlesAdapter implements ITranscriptionService {
     private readonly browser: BrowserYouTubeSubtitlesAdapter,
     private readonly backend: ITranscriptionService,
     private readonly logger: ILogger,
+    /** Отдавать YouTube серверу, если браузер не справился (по умолчанию нет: сервер YouTube обычно блокирует) */
+    private readonly youtubeViaServer = false,
   ) {}
 
   async transcribe(input: TranscriptionInput): Promise<TranscriptionResult> {
@@ -95,9 +117,13 @@ export class PreferBrowserSubtitlesAdapter implements ITranscriptionService {
       }
     } catch (error) {
       if (error instanceof NoCaptionsError) throw new SubtitlesNotFoundError();
-      this.logger.warn('browser captions failed, falling back to server', {
-        error: error instanceof CaptionsFetchError ? error.message : String(error),
-      });
+      const details = error instanceof Error ? error.message : String(error);
+      this.logger.warn('browser captions failed', { error: details });
+      if (!this.youtubeViaServer) {
+        throw new TranscriptionError(
+          `Не удалось получить субтитры YouTube. Обновите страницу видео (F5), дождитесь, пока оно начнёт играть, и нажмите «Повторить». Если не поможет — пришлите разработчику эту строку: ${details}`,
+        );
+      }
     }
     return this.backend.transcribe(input);
   }

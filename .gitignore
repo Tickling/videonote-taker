@@ -13,3 +13,5 @@ backend/tmp/
 dist-e2e/
 e2e/output/
 release/
+dist-store/
+deploy/.env

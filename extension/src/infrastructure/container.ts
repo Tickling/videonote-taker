@@ -8,6 +8,7 @@ import { SaveSettingsUseCase } from '@application/useCases/SaveSettingsUseCase';
 import { DeleteNoteUseCase, ListNotesUseCase, SaveNoteUseCase } from '@application/useCases/NoteUseCases';
 import { ExportToMarkdownUseCase, ExportToWordUseCase } from '@application/useCases/ExportUseCases';
 import { ApiKeyValidator } from './adapters/ApiKeyValidator';
+import { buildConfig } from './config';
 import { BackendAPIAdapter } from './adapters/BackendAPIAdapter';
 import { ChromeStorageNoteRepository, ChromeStorageSettingsRepository } from './adapters/ChromeStorageAdapter';
 import { MarkdownExporter } from './exporters/MarkdownExporter';
@@ -26,13 +27,14 @@ export function createBackgroundContainer() {
   const settings = new ChromeStorageSettingsRepository();
   const notes = new ChromeStorageNoteRepository();
   const backend = new BackendAPIAdapter(settings, logger.child('backend'));
-  const jobs = new BackendJobTranscriber(backend, logger.child('jobs'));
+  const jobs = new BackendJobTranscriber(backend, logger.child('jobs'), undefined, undefined, buildConfig.youtubeViaServer);
 
   const chain = new TranscriptionChain(
     new PreferBrowserSubtitlesAdapter(
       new BrowserYouTubeSubtitlesAdapter(logger.child('youtube')),
       new SubtitlesExtractorAdapter(jobs),
       logger.child('subtitles'),
+      buildConfig.youtubeViaServer,
     ),
     new WhisperAPIAdapter(settings, jobs),
     new LocalWhisperAdapter(backend, jobs),

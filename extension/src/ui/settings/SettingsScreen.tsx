@@ -205,6 +205,7 @@ export function SettingsScreen() {
             <span className="mb-1 flex items-center gap-1.5 text-sm font-medium text-slate-700">
               <Server size={14} /> Адрес сервера VideoNote
             </span>
+            <span className="mb-1.5 block text-xs text-slate-500">Нужен для Rutube, VK Видео и Whisper. Видео YouTube обрабатываются прямо в браузере.</span>
             <span className="flex gap-2">
               <input
                 value={draft.backendUrl}

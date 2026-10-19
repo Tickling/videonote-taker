@@ -37,6 +37,19 @@ const EnvSchema = z.object({
   WHISPER_MODEL_PATH: optionalString,
   // Необязательный ключ Groq владельца сервера (если пользователь не указал свой)
   GROQ_API_KEY: optionalString,
+  // Публичный сервер: какие сайты обрабатывать (YouTube расширение берёт само, в браузере)
+  ALLOWED_PLATFORMS: z
+    .string()
+    .default('youtube,rutube,vk_video')
+    .transform((v) => v.split(',').map((p) => p.trim()).filter(Boolean)),
+  // Ограничения на один IP (защита публичного сервера от злоупотреблений)
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(120),
+  JOBS_PER_HOUR_PER_IP: z.coerce.number().int().min(1).default(30),
+  // За обратным прокси (Caddy/nginx) — брать IP клиента из X-Forwarded-For
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   MAX_CONCURRENT_JOBS: z.coerce.number().int().min(1).max(10).default(2),
   JOB_TTL_MINUTES: z.coerce.number().int().min(1).default(60),
   // Для тестов: подмена адресов провайдеров

@@ -64,11 +64,13 @@ function waitForCapture(videoId: string, timeoutMs: number): Promise<Captured | 
 }
 
 /** Способ 3: на секунду включаем субтитры в плеере и забираем то, что он загрузил. */
-async function captureFromPlayer(videoId: string): Promise<YouTubeTranscript | null> {
+export type PlayerCaptureResult = YouTubeTranscript | 'no_button' | 'no_response' | 'empty';
+
+async function captureFromPlayer(videoId: string): Promise<PlayerCaptureResult> {
   const button = document.querySelector<HTMLButtonElement>('.ytp-subtitles-button');
   let toggled = false;
   if (!lastCaptured || lastCaptured.videoId !== videoId) {
-    if (!button || button.getAttribute('aria-disabled') === 'true' || button.style.display === 'none') return null;
+    if (!button || button.getAttribute('aria-disabled') === 'true' || button.style.display === 'none' || button.offsetParent === null) return 'no_button';
     if (button.getAttribute('aria-pressed') !== 'true') {
       button.click();
       toggled = true;
@@ -76,9 +78,9 @@ async function captureFromPlayer(videoId: string): Promise<YouTubeTranscript | n
   }
   const captured = await waitForCapture(videoId, 8000);
   if (toggled && button?.getAttribute('aria-pressed') === 'true') button.click();
-  if (!captured) return null;
+  if (!captured) return 'no_response';
   const segments = parseCaptionBody(captured.body);
-  if (segments.length === 0) return null;
+  if (segments.length === 0) return 'empty';
   const video = findMainVideo();
   return {
     title: pageTitle(),
@@ -89,25 +91,36 @@ async function captureFromPlayer(videoId: string): Promise<YouTubeTranscript | n
   };
 }
 
+const PLAYER_REASONS: Record<Exclude<PlayerCaptureResult, YouTubeTranscript>, string> = {
+  no_button: 'плеер: кнопка субтитров недоступна',
+  no_response: 'плеер: субтитры не загрузились',
+  empty: 'плеер: пустые субтитры',
+};
+
 export async function extractYouTubeCaptions(videoId: string, language: string): Promise<CaptionsReply> {
   let noCaptions = false;
-  let lastError = '';
+  const problems: string[] = [];
   try {
     const html = await fetchWatchHtml(videoId, language, (input, init) => fetch(input, init));
     return { ok: true, transcript: await transcriptFromWatchHtml(html, language, (input, init) => fetch(input, init)) };
   } catch (error) {
     if (error instanceof NoCaptionsError) noCaptions = true;
-    lastError = error instanceof Error ? error.message : String(error);
+    else problems.push(error instanceof Error ? error.message : String(error));
   }
   // Плеер — только для видео, открытого на этой вкладке
   if (videoIdFromUrl(location.href) === videoId) {
     try {
       const captured = await captureFromPlayer(videoId);
-      if (captured) return { ok: true, transcript: captured };
+      if (typeof captured !== 'string') return { ok: true, transcript: captured };
+      // Кнопки субтитров нет и в данных плеера дорожек нет — субтитров у видео нет
+      if (captured === 'no_button' && noCaptions) return { ok: false, reason: 'no_captions', message: 'У этого видео нет субтитров' };
+      problems.push(PLAYER_REASONS[captured]);
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+      problems.push(`плеер: ${error instanceof Error ? error.message : String(error)}`);
     }
+  } else {
+    problems.push('плеер: видео не открыто на вкладке');
   }
   if (noCaptions) return { ok: false, reason: 'no_captions', message: 'У этого видео нет субтитров' };
-  return { ok: false, reason: 'failed', message: lastError || new CaptionsFetchError('Не удалось получить субтитры').message };
+  return { ok: false, reason: 'failed', message: problems.join('; ') || new CaptionsFetchError('Не удалось получить субтитры').message };
 }

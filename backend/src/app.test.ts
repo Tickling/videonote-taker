@@ -137,6 +137,23 @@ describe('HTTP API', () => {
     }
   });
 
+  it('rate-limits jobs per IP', async () => {
+    const limited = await buildApp(
+      loadEnv({ NODE_ENV: 'test', LOG_LEVEL: 'silent', DATABASE_PATH: join(tmp, 'rl.sqlite'), TMP_DIR: join(tmp, 'rl'), YTDLP_PATH: FAKE_YTDLP, JOBS_PER_HOUR_PER_IP: '2', ALLOWED_PLATFORMS: 'rutube,vk_video' }),
+    );
+    const post = (videoUrl: string) => limited.inject({ method: 'POST', url: '/api/transcribe-by-url', payload: { videoUrl } });
+    const youtube = await post('https://youtu.be/lesson0001');
+    expect(youtube.statusCode).toBe(400);
+    expect(youtube.json()).toMatchObject({ error: { message: expect.stringContaining('прямо в браузере') } });
+    // лимит 2 в час: YouTube-отказ — 1-й запрос, Rutube — 2-й, следующий — 429
+    expect((await post('https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/')).statusCode).toBe(202);
+    const limitedRes = await post('https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/');
+    expect(limitedRes.statusCode).toBe(429);
+    expect(limitedRes.json()).toMatchObject({ error: { code: 'RATE_LIMITED' } });
+    await new Promise((r) => setTimeout(r, 300));
+    await limited.close();
+  });
+
   it('returns 404 for unknown jobs', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/jobs/does-not-exist' });
     expect(res.statusCode).toBe(404);

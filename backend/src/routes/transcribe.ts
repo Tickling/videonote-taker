@@ -7,15 +7,26 @@ import { ChunkQuery, credentialsFrom, TranscribeByUrlBody } from './schemas.js';
 
 const ESTIMATED_SECONDS = { auto: 30, subtitles: 15, whisper: 180, local_whisper: 600 } as const;
 
-export function transcribeRoutes(deps: { queue: InMemoryJobQueue; transcribeChunk: TranscribeChunkUseCase }) {
+export function transcribeRoutes(deps: { queue: InMemoryJobQueue; transcribeChunk: TranscribeChunkUseCase; allowedPlatforms: string[]; jobsPerHour: number }) {
   return async (app: FastifyInstance): Promise<void> => {
-    app.post('/api/transcribe-by-url', async (request, reply) => {
+    const perHour = { config: { rateLimit: { max: deps.jobsPerHour, timeWindow: '1 hour' } } };
+
+    app.post('/api/transcribe-by-url', perHour, async (request, reply) => {
       const parsed = TranscribeByUrlBody.safeParse(request.body);
       if (!parsed.success) {
         throw new AppError('INVALID_REQUEST', parsed.error.issues.map((i) => i.message).join('; '));
       }
       const body = parsed.data;
-      const canonical = parseVideoUrl(body.videoUrl)?.canonicalUrl ?? body.videoUrl;
+      const video = parseVideoUrl(body.videoUrl);
+      if (video && !deps.allowedPlatforms.includes(video.platform)) {
+        throw new AppError(
+          'INVALID_REQUEST',
+          video.platform === 'youtube'
+            ? 'Видео YouTube этот сервер не обрабатывает — расширение получает их субтитры прямо в браузере.'
+            : 'Видео с этого сайта этот сервер не обрабатывает.',
+        );
+      }
+      const canonical = video?.canonicalUrl ?? body.videoUrl;
       const job = await deps.queue.enqueue(
         { videoUrl: canonical, language: body.language, videoType: body.videoType, mode: body.transcriptionMode, generateSummary: body.generateSummary },
         credentialsFrom(request.headers),
@@ -38,7 +49,7 @@ export function transcribeRoutes(deps: { queue: InMemoryJobQueue; transcribeChun
     });
 
     // Real-time: тело запроса — аудио-фрагмент (webm/ogg/mp4)
-    app.post('/api/transcribe-chunk', { bodyLimit: 25 * 1024 * 1024 }, async (request) => {
+    app.post('/api/transcribe-chunk', { bodyLimit: 25 * 1024 * 1024, config: { rateLimit: { max: deps.jobsPerHour * 10, timeWindow: '1 hour' } } }, async (request) => {
       const query = ChunkQuery.safeParse(request.query);
       if (!query.success) throw new AppError('INVALID_REQUEST', 'Неверные параметры фрагмента');
       if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError('INVALID_REQUEST', 'Пустой аудио-фрагмент');
