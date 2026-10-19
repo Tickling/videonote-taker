@@ -49,6 +49,11 @@ backend/src/
 
 **Ключи API** хранятся только в `chrome.storage.local`. Groq/GPT-4o и real-time Whisper вызываются из расширения напрямую. На backend ключ уходит (в заголовке `X-OpenAI-Api-Key`) только когда backend сам скачивает аудио для Whisper; в логах заголовки маскируются.
 
+## Публикация
+- **Chrome Web Store** — пошагово в [`store/README.md`](store/README.md): тексты, скриншоты, ответы для проверки, пакет `npm run store:package`.
+- **Сервер в интернете** (для Rutube/VK) — [`deploy/README.md`](deploy/README.md): установка на VPS одной командой (Docker + HTTPS).
+- [Политика конфиденциальности](PRIVACY.md)
+
 ## Разработка
 
 ```bash

@@ -1,0 +1,31 @@
+# Публичный сервер: backend + Caddy (автоматический HTTPS от Let's Encrypt).
+# Запуск: DOMAIN=ваш.домен docker compose up -d   (или через deploy/install.sh)
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - data:/data
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Укажите DOMAIN в deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - backend
+
+volumes:
+  data:
+  caddy_data:

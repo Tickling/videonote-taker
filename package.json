@@ -18,7 +18,9 @@
     "test": "npm run test --workspaces",
     "e2e": "npm run build -w backend && npm run build:e2e -w extension && node e2e/run.mjs",
     "guides": "npm run guides -w extension",
-    "release": "npm run build && node scripts/make-release.mjs"
+    "release": "npm run build && node scripts/make-release.mjs",
+    "store:assets": "node scripts/store-assets.mjs",
+    "store:package": "npm run build:store -w extension && node scripts/make-release.mjs --store"
   },
   "devDependencies": {
     "jszip": "^3.10.2",

@@ -18,6 +18,20 @@ function addDir(src, dest, filter = () => true) {
   }
 }
 
+// --store: только пакет для Chrome Web Store (manifest.json в корне архива)
+if (process.argv.includes('--store')) {
+  const dist = join(root, 'extension', 'dist-store');
+  if (!existsSync(join(dist, 'manifest.json'))) throw new Error('Нет extension/dist-store — выполните npm run build:store -w extension');
+  const { version } = JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8'));
+  const store = new JSZip();
+  addDir(dist, store);
+  mkdirSync(join(root, 'release'), { recursive: true });
+  const out = join(root, 'release', `VideoNote-Taker-ChromeWebStore-${version}.zip`);
+  writeFileSync(out, await store.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
+  console.log(`✓ ${relative(root, out)} (${(statSync(out).size / 1024 / 1024).toFixed(1)} МБ)`);
+  process.exit(0);
+}
+
 for (const required of ['extension/dist/manifest.json', 'backend/dist/server.js']) {
   if (!existsSync(join(root, required))) throw new Error(`Нет ${required} — сначала выполните npm run build`);
 }

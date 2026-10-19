@@ -45,9 +45,9 @@ const SUMMARY = {
   example: 'Функция, которая считает сумму списка:\n```python\ndef total(items):\n    return sum(items)\n\nprint(total([1, 2, 3]))  # 6\n```',
 };
 const INTERVIEW = {
-  ideas: ['Интервью-версия конспекта.'],
+  ideas: ['Понятный код важнее короткого: его читают чаще, чем пишут', 'Начинать стоит с переменных, списков и функций', 'Ошибки новичков — от невнимания к отступам'],
   quotes: [{ text: 'Код читают чаще, чем пишут', timestamp: 49 }],
-  conclusions: ['Пишите понятный код'],
+  conclusions: ['Пишите код так, чтобы его понял коллега', 'Учите основы на маленьких примерах'],
   timecodes: SUMMARY.timecodes,
   shortResume: 'Беседа о Python',
 };
@@ -82,7 +82,21 @@ await new Promise((r) => llm.listen(LLM_PORT, '127.0.0.1', r));
 
 // ---------- тестовое видео ----------
 const video = join(tmp, 'video.webm');
-execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25:duration=60', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=60', '-c:v', 'libvpx', '-b:v', '400k', '-c:a', 'libopus', '-shortest', video]);
+// Кадр «урока» (для скриншотов магазина); без шрифтов DejaVu — тестовая таблица
+const BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+const MONO = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf';
+const lessonFilter = [
+  'drawbox=x=0:y=0:w=1280:h=8:color=0xf97316:t=fill',
+  `drawtext=fontfile=${BOLD}:text='Основы Python':fontcolor=white:fontsize=72:x=80:y=120`,
+  `drawtext=fontfile=${BOLD}:text='Урок 1 · Переменные и функции':fontcolor=0x94a3b8:fontsize=36:x=80:y=220`,
+  'drawbox=x=80:y=320:w=760:h=260:color=0x1e293b:t=fill',
+  `drawtext=fontfile=${MONO}:text='def total(items)\\:':fontcolor=0xfbbf24:fontsize=36:x=120:y=360`,
+  `drawtext=fontfile=${MONO}:text='return sum(items)':fontcolor=0xe2e8f0:fontsize=36:x=210:y=420`,
+  `drawtext=fontfile=${MONO}:text='print(total([1, 2, 3]))  # 6':fontcolor=0x86efac:fontsize=36:x=120:y=480`,
+  "drawtext=fontfile=" + MONO + ":text='%{pts\\:hms}':fontcolor=0x475569:fontsize=24:x=1100:y=670",
+].join(',');
+const videoSource = existsSync(BOLD) ? ['-f', 'lavfi', '-i', 'color=c=0x0f172a:s=1280x720:r=10:d=60', '-vf', lessonFilter] : ['-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25:duration=60'];
+execFileSync('ffmpeg', ['-loglevel', 'error', ...videoSource.slice(0, 4), '-f', 'lavfi', '-i', 'sine=frequency=330:duration=60', ...videoSource.slice(4), '-c:v', 'libvpx', '-b:v', '300k', '-c:a', 'libopus', '-shortest', video]);
 const audio = join(tmp, 'audio.mp3');
 execFileSync('ffmpeg', ['-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', audio]);
 
@@ -133,7 +147,7 @@ const lessonLines = readFileSync(join(root, 'e2e', 'fixtures', 'lesson.ru.vtt'),
 const ytCalls = [];
 function playerResponse(id, withCaptions) {
   return {
-    videoDetails: { videoId: id, title: id === 'capture0001' ? 'Видео с перехватом субтитров' : 'Основы Python за 10 минут', lengthSeconds: '60' },
+    videoDetails: { videoId: id, title: id === 'capture0001' ? 'Списки и словари в Python' : 'Основы Python за 10 минут', lengthSeconds: '60' },
     ...(withCaptions
       ? { captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: `https://www.youtube.com/api/timedtext?v=${id}&lang=ru`, languageCode: 'ru', name: { simpleText: 'Русский' } }] } } }
       : {}),
@@ -143,7 +157,7 @@ function watchPage(id) {
   const withCaptions = !/^(nosubs|nocaps)/.test(id);
   const known = id === 'lesson0001' || id === 'capture0001' || /^(nosubs|nocaps|broken)/.test(id);
   const data = withCaptions ? { engagementPanels: [{ x: { getTranscriptEndpoint: { params: `P_${id}` } } }] } : {};
-  const title = id === 'capture0001' ? 'Видео с перехватом субтитров' : 'Основы Python за 10 минут';
+  const title = id === 'capture0001' ? 'Списки и словари в Python' : 'Основы Python за 10 минут';
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title} - YouTube</title>
 <style>body{margin:0;background:#0f0f0f;color:#fff;font-family:Roboto,Arial,sans-serif}header{height:56px;display:flex;align-items:center;padding:0 24px;font-weight:bold;font-size:20px}
 header span{color:#f00}main{padding:0 24px}video{width:820px;border-radius:12px;background:#000}h1{font-size:20px}.ytp-subtitles-button{margin:8px 0;padding:4px 10px}</style>
@@ -289,7 +303,8 @@ await page.screenshot({ path: join(out, '5-sidebar-transcript.png') });
 const { path: docxPath, name: docxName } = await nextDownload(() => sidebar.getByRole('button', { name: 'Word' }).click());
 const zip = await JSZip.loadAsync(readFileSync(docxPath));
 const xml = await zip.file('word/document.xml').async('string');
-const media = Object.keys(zip.files).filter((f) => f.startsWith('word/media/') && !zip.files[f].dir).length;
+// одинаковые кадры Word хранит одним файлом — считаем вставленные картинки в тексте
+const media = (xml.match(/<w:drawing>/g) ?? []).length;
 check('экспорт Word: разделы обучающего видео, скриншоты, без транскрипта', xml.includes('Основы Python') && xml.includes('Помощь от ИИ: пример') && !xml.includes('Начнём с переменных') && media === 2 && docxName === 'Основы Python за 10 минут.docx', `${docxName}, картинок: ${media}`);
 copyFileSync(docxPath, join(out, 'example.docx'));
 const { path: mdPath, name: mdName } = await nextDownload(() => sidebar.getByRole('button', { name: 'Markdown' }).click());
@@ -301,7 +316,7 @@ copyFileSync(mdPath, join(out, 'example.md'));
 await sidebar.getByRole('tab', { name: 'Конспект' }).click();
 await sidebar.getByLabel('Тип видео для пересоздания').selectOption('interview');
 await sidebar.getByRole('button', { name: /Пересоздать/ }).click();
-await sidebar.getByText('Интервью-версия конспекта.').waitFor({ timeout: 15000 });
+await sidebar.getByText('Понятный код важнее короткого: его читают чаще, чем пишут').waitFor({ timeout: 15000 });
 check('пересоздание как «Интервью»: идеи, цитаты, выводы, таймкоды', (await sidebar.getByText('Выводы', { exact: true }).count()) === 1 && (await sidebar.getByText('Главные цитаты', { exact: true }).count()) === 1);
 await page.screenshot({ path: join(out, '3b-sidebar-interview.png') });
 
@@ -363,6 +378,7 @@ check('popup: приватное видео VK (через сервер) → п�
 
 await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://youtu.be/lesson0001');
 await popup.getByText('Основы Python за 10 минут').first().waitFor();
+await popup.waitForTimeout(500);
 await popup.screenshot({ path: join(out, '7-popup-note.png') });
 check('popup: показывает готовый конспект по ссылке', true);
 const { name: popupDocx } = await nextDownload(() => popup.getByRole('button', { name: 'Word' }).click());
