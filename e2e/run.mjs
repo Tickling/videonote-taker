@@ -106,17 +106,62 @@ const context = await chromium.launchPersistentContext(join(tmp, 'profile'), {
 const errors = [];
 const watch = (page) => page.on('console', (m) => m.type() === 'error' && errors.push(`${page.url().slice(0, 60)}: ${m.text()}`));
 
-await context.route('https://www.youtube.com/**', (route) => {
-  const url = new URL(route.request().url());
-  if (url.pathname === '/e2e-video.webm') return route.fulfill({ status: 200, contentType: 'video/webm', body: readFileSync(video) });
-  return route.fulfill({
-    status: 200,
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><meta charset="utf-8"><title>Основы Python за 10 минут - YouTube</title>
+// ---------- поддельный YouTube: страница, данные плеера, панель «Расшифровка», субтитры ----------
+const lessonLines = readFileSync(join(root, 'e2e', 'fixtures', 'lesson.ru.vtt'), 'utf8')
+  .split('\n\n')
+  .map((b) => b.split('\n'))
+  .filter((l) => l[0]?.includes('-->'))
+  .map((l, i) => ({ start: i * 3.5, text: i === 0 ? 'Привет из браузера! Сегодня разберём основы Python.' : l[1] }));
+const ytCalls = [];
+function playerResponse(id, withCaptions) {
+  return {
+    videoDetails: { videoId: id, title: id === 'capture0001' ? 'Видео с перехватом субтитров' : 'Основы Python за 10 минут', lengthSeconds: '60' },
+    ...(withCaptions
+      ? { captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: `https://www.youtube.com/api/timedtext?v=${id}&lang=ru`, languageCode: 'ru', name: { simpleText: 'Русский' } }] } } }
+      : {}),
+  };
+}
+function watchPage(id) {
+  const withCaptions = !/^(nosubs|nocaps)/.test(id);
+  const known = id === 'lesson0001' || id === 'capture0001' || /^(nosubs|nocaps)/.test(id);
+  const data = withCaptions ? { engagementPanels: [{ x: { getTranscriptEndpoint: { params: `P_${id}` } } }] } : {};
+  const title = id === 'capture0001' ? 'Видео с перехватом субтитров' : 'Основы Python за 10 минут';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title} - YouTube</title>
 <style>body{margin:0;background:#0f0f0f;color:#fff;font-family:Roboto,Arial,sans-serif}header{height:56px;display:flex;align-items:center;padding:0 24px;font-weight:bold;font-size:20px}
-header span{color:#f00}main{padding:0 24px}video{width:820px;border-radius:12px;background:#000}h1{font-size:20px}</style></head>
-<body><header><span>▶</span>&nbsp;YouTube</header><main><video controls autoplay muted loop></video><script>fetch("/e2e-video.webm").then(r=>r.blob()).then(b=>{document.querySelector("video").src=URL.createObjectURL(b)})</script><h1>Основы Python за 10 минут</h1><p style="color:#aaa">Канал «Код с нуля» · 120 тыс. просмотров</p></main></body></html>`,
-  });
+header span{color:#f00}main{padding:0 24px}video{width:820px;border-radius:12px;background:#000}h1{font-size:20px}.ytp-subtitles-button{margin:8px 0;padding:4px 10px}</style>
+<script>var ytcfg={"INNERTUBE_API_KEY":"FAKEKEY","INNERTUBE_CLIENT_VERSION":"2.20260101.00.00"};</script>
+${known ? `<script>var ytInitialPlayerResponse = ${JSON.stringify(playerResponse(id, withCaptions))};</script><script>var ytInitialData = ${JSON.stringify(data)};</script>` : ''}
+</head><body><header><span>▶</span>&nbsp;YouTube</header><main><video controls autoplay muted loop></video>
+<div><button class="ytp-subtitles-button" aria-pressed="false">CC</button></div><h1>${title}</h1><p style="color:#aaa">Канал «Код с нуля» · 120 тыс. просмотров</p></main>
+<script>
+fetch("/e2e-video.webm").then(r=>r.blob()).then(b=>{document.querySelector("video").src=URL.createObjectURL(b)});
+// как настоящий плеер: при включении субтитров сам загружает их (с подписью pot)
+document.querySelector('.ytp-subtitles-button').addEventListener('click', (e) => {
+  const on = e.target.getAttribute('aria-pressed') !== 'true';
+  e.target.setAttribute('aria-pressed', String(on));
+  if (on) { const x = new XMLHttpRequest(); x.open('GET', '/api/timedtext?v=${id}&lang=ru&fmt=json3&pot=SIGNED'); x.send(); }
+});
+</script></body></html>`;
+}
+await context.route('https://www.youtube.com/**', async (route) => {
+  const url = new URL(route.request().url());
+  const id = url.searchParams.get('v') ?? '';
+  if (url.pathname === '/e2e-video.webm') return route.fulfill({ status: 200, contentType: 'video/webm', body: readFileSync(video) });
+  if (url.pathname === '/youtubei/v1/get_transcript') {
+    const params = JSON.parse(route.request().postData() ?? '{}').params ?? '';
+    ytCalls.push(`get_transcript ${params}`);
+    if (params !== 'P_lesson0001') return route.fulfill({ status: 403, body: '{}' });
+    const initialSegments = lessonLines.map((l) => ({ transcriptSegmentRenderer: { startMs: String(l.start * 1000), endMs: String(l.start * 1000 + 3400), snippet: { runs: [{ text: l.text }] } } }));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: [{ updateEngagementPanelAction: { content: { transcriptRenderer: { content: { transcriptSearchPanelRenderer: { body: { transcriptSegmentListRenderer: { initialSegments } } } } } } } }] }) });
+  }
+  if (url.pathname === '/api/timedtext') {
+    ytCalls.push(`timedtext ${url.search}`);
+    // без подписи pot YouTube отдаёт пустой ответ — как в реальности
+    if (!url.searchParams.get('pot')) return route.fulfill({ status: 200, body: '' });
+    const events = ['Перехвачено у плеера: первая фраза', 'вторая фраза про функции'].map((t, i) => ({ tStartMs: i * 4000, dDurationMs: 3500, segs: [{ utf8: t }] }));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events }) });
+  }
+  return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: watchPage(id) });
 });
 
 let sw = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -188,7 +233,7 @@ await launcher.click();
 const sidebar = page.frameLocator('#videonote-taker-root iframe.panel');
 await sidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
 await sidebar.getByText('Ключевые моменты').waitFor({ timeout: 30000 });
-check('конспект создан (субтитры через backend + Groq)', true);
+check('конспект создан (субтитры YouTube из браузера + Groq)', ytCalls.includes('get_transcript P_lesson0001'), ytCalls.join(' | '));
 await page.screenshot({ path: join(out, '3-sidebar-summary.png') });
 
 // Клик по таймкоду перематывает видео
@@ -217,7 +262,7 @@ await page.screenshot({ path: join(out, '4-sidebar-screenshots.png') });
 
 await sidebar.getByRole('tab', { name: /Транскрипт/ }).click();
 await sidebar.getByText('Начнём с переменных').waitFor();
-check('транскрипт отображается', true);
+check('транскрипт получен через браузер (панель «Расшифровка»)', await sidebar.getByText('Привет из браузера!').count() > 0);
 await page.screenshot({ path: join(out, '5-sidebar-transcript.png') });
 
 // Экспорт в Word и Markdown
@@ -243,6 +288,21 @@ check('пересоздание конспекта с другим типом в
 await sidebar.getByRole('button', { name: /Запись в реальном времени/ }).click();
 await sidebar.getByText(/Для записи в реальном времени нужен Whisper/).waitFor({ timeout: 10000 });
 check('real-time без ключа OpenAI → понятная подсказка', true);
+
+// Видео, где работают только субтитры самого плеера (как при защите pot)
+const capturePage = await context.newPage();
+watch(capturePage);
+await capturePage.goto('https://www.youtube.com/watch?v=capture0001');
+await capturePage.bringToFront();
+await capturePage.locator('#videonote-taker-root .launcher').click();
+const captureSidebar = capturePage.frameLocator('#videonote-taker-root iframe.panel');
+await captureSidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
+await captureSidebar.getByText('Ключевые моменты').waitFor({ timeout: 30000 });
+await captureSidebar.getByRole('tab', { name: /Транскрипт/ }).click();
+await captureSidebar.getByText('Перехвачено у плеера: первая фраза').waitFor({ timeout: 10000 });
+const ccState = await capturePage.locator('.ytp-subtitles-button').getAttribute('aria-pressed');
+check('субтитры перехвачены у плеера, кнопка CC вернулась в исходное состояние', ccState === 'false', `aria-pressed=${ccState}`);
+await capturePage.close();
 
 // 3. Popup: видео без субтитров, история
 const popup = await context.newPage();

@@ -18,6 +18,7 @@ import { OpenAIProvider } from './providers/llm/OpenAIProvider';
 import { BackendJobTranscriber } from './providers/transcription/BackendJobTranscriber';
 import { LocalWhisperAdapter } from './providers/transcription/LocalWhisperAdapter';
 import { SubtitlesExtractorAdapter } from './providers/transcription/SubtitlesExtractorAdapter';
+import { BrowserYouTubeSubtitlesAdapter, PreferBrowserSubtitlesAdapter } from './providers/transcription/BrowserYouTubeSubtitlesAdapter';
 import { WhisperAPIAdapter } from './providers/transcription/WhisperAPIAdapter';
 
 export function createBackgroundContainer() {
@@ -28,7 +29,11 @@ export function createBackgroundContainer() {
   const jobs = new BackendJobTranscriber(backend, logger.child('jobs'));
 
   const chain = new TranscriptionChain(
-    new SubtitlesExtractorAdapter(jobs),
+    new PreferBrowserSubtitlesAdapter(
+      new BrowserYouTubeSubtitlesAdapter(logger.child('youtube')),
+      new SubtitlesExtractorAdapter(jobs),
+      logger.child('subtitles'),
+    ),
     new WhisperAPIAdapter(settings, jobs),
     new LocalWhisperAdapter(backend, jobs),
     settings,

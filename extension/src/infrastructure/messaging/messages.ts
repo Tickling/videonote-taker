@@ -64,7 +64,8 @@ export type ContentCommand =
   | { type: 'toggle-sidebar' }
   | { type: 'get-video-state' }
   | { type: 'start-element-recording'; chunkSeconds: number }
-  | { type: 'stop-element-recording' };
+  | { type: 'stop-element-recording' }
+  | { type: 'extract-youtube-captions'; videoId: string; language: string };
 
 export interface VideoState {
   url: string;

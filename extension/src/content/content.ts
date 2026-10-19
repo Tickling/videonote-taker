@@ -11,6 +11,7 @@ import {
   type VideoState,
 } from '@infrastructure/messaging/messages';
 import { ChunkedRecorder } from './chunkedRecorder';
+import { extractYouTubeCaptions } from './youtubeCaptions';
 import { findMainVideo, pageTitle } from './videoDetector';
 
 const log = new ConsoleLogger('content');
@@ -197,6 +198,9 @@ chrome.runtime.onMessage.addListener((message: ContentCommand, _sender, sendResp
         });
       sendResponse(true);
       return false;
+    case 'extract-youtube-captions':
+      void extractYouTubeCaptions(message.videoId, message.language).then(sendResponse);
+      return true; // ответ асинхронный
     case 'stop-element-recording':
       elementRecorder?.stop();
       elementRecorder = null;
