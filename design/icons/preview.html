@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;padding:32px;font-family:DejaVu Sans,sans-serif;background:#f8fafc;color:#0f172a}
+h1{font-size:26px;margin:0 0 24px}
+.grid{display:flex;gap:28px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;width:190px;text-align:center}
+.num{font-size:34px;font-weight:bold;color:#64748b}
+.big{width:128px;height:128px;margin:10px auto}
+.small{display:flex;gap:10px;justify-content:center;align-items:end;margin:8px 0}
+.bar{background:#dee1e6;border-radius:8px;padding:6px;display:flex;gap:8px;justify-content:center}
+.name{font-weight:bold;margin-top:10px}.desc{font-size:13px;color:#64748b;margin-top:4px}
+</style></head><body><h1>VideoNote Taker — варианты иконки</h1><div class="grid" id="g"></div>
+<script>
+const items=[["1-note-play","Документ + Play","Синий, классический"],["2-play-pen","Play + Карандаш","Яркий, тёплый"],["3-timecode-bubble","Пузырь с таймкодами","Фиолетовый"],["4-film-notebook","Плёнка + Блокнот","Зелёный"],["5-monogram","Монограмма V ▶","Тёмный, минимализм"]];
+document.getElementById('g').innerHTML=items.map(([f,n,d],i)=>`<div class="card"><div class="num">${i+1}</div><img class="big" src="${f}.svg"><div class="small"><img src="${f}.svg" width=48><img src="${f}.svg" width=32><img src="${f}.svg" width=16></div><div class="bar"><img src="${f}.svg" width=16> <span style="font-size:11px">в панели Chrome</span></div><div class="name">${n}</div><div class="desc">${d}</div></div>`).join('');
+</script></body></html>

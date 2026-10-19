@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Типографика Markdown-конспекта */
+.prose-note h1, .prose-note h2 { @apply mt-4 mb-1.5 text-base font-semibold text-slate-900; }
+.prose-note h3, .prose-note h4 { @apply mt-3 mb-1 text-sm font-semibold text-slate-900; }
+.prose-note p { @apply my-1.5 leading-relaxed; }
+.prose-note ul { @apply my-1.5 list-disc space-y-1 pl-5; }
+.prose-note ol { @apply my-1.5 list-decimal space-y-1 pl-5; }
+.prose-note strong { @apply font-semibold text-slate-900; }
+.prose-note code { @apply rounded bg-slate-100 px-1 font-mono text-[12px]; }
+.prose-note pre { @apply my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[12px] text-slate-100; }
+.prose-note pre code { @apply bg-transparent p-0 text-slate-100; }
+.prose-note blockquote { @apply my-2 border-l-4 border-orange-300 pl-3 italic text-slate-600; }
+
+body { @apply bg-white font-sans text-slate-800 antialiased; }
