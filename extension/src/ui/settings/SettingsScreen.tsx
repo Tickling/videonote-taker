@@ -4,6 +4,7 @@ import type { SettingsFieldError } from '@application/useCases/SaveSettingsUseCa
 import type { BackendHealth } from '@domain/ports/IBackendClient';
 import { SummaryProvider, TranscriptionProvider } from '@domain/valueObjects/Providers';
 import type { UserSettings } from '@domain/valueObjects/UserSettings';
+import { buildConfig } from '@infrastructure/config';
 import { openGuide } from '../shared/actions';
 import { Button, cx, LanguageSelect, Logo, VideoTypeSelector } from '../shared/components';
 import { useContainer, useSettings } from '../shared/hooks';
@@ -148,27 +149,29 @@ export function SettingsScreen() {
               checked={draft.transcriptionProvider === TranscriptionProvider.SUBTITLES}
               onChange={() => set('transcriptionProvider', TranscriptionProvider.SUBTITLES)}
               title="Только автосубтитры (бесплатно)"
-              hint="Работает для большинства видео YouTube, части Rutube и VK"
+              hint={buildConfig.youtubeOnly ? 'Работает для большинства видео YouTube' : 'Работает для большинства видео YouTube, части Rutube и VK'}
             />
             <Radio
               checked={draft.transcriptionProvider === TranscriptionProvider.OPENAI_WHISPER}
               onChange={() => set('transcriptionProvider', TranscriptionProvider.OPENAI_WHISPER)}
               title="Использовать OpenAI Whisper (если субтитры недоступны)"
-              hint="≈ 35 ₽ за час видео. Нужен для записи в реальном времени"
+              hint={buildConfig.youtubeOnly ? 'Для видео без субтитров — «Запись в реальном времени» распознаёт звук. ≈ 35 ₽ за час видео' : '≈ 35 ₽ за час видео. Нужен для записи в реальном времени'}
             />
-            <Radio
-              checked={draft.transcriptionProvider === TranscriptionProvider.LOCAL_WHISPER}
-              onChange={() => set('transcriptionProvider', TranscriptionProvider.LOCAL_WHISPER)}
-              title="Локальный Whisper (для продвинутых)"
-              hint="Бесплатно, распознаёт на вашем компьютере. Нужен whisper.cpp рядом с сервером"
-            />
+            {!buildConfig.youtubeOnly && (
+              <Radio
+                checked={draft.transcriptionProvider === TranscriptionProvider.LOCAL_WHISPER}
+                onChange={() => set('transcriptionProvider', TranscriptionProvider.LOCAL_WHISPER)}
+                title="Локальный Whisper (для продвинутых)"
+                hint="Бесплатно, распознаёт на вашем компьютере. Нужен whisper.cpp рядом с сервером"
+              />
+            )}
           </div>
           {draft.transcriptionProvider === TranscriptionProvider.OPENAI_WHISPER && (
             <KeyInput label="API-ключ OpenAI" value={draft.openaiApiKey ?? ''} onChange={(v) => set('openaiApiKey', v)} placeholder="sk-..." {...(fieldError('openaiApiKey') ? { error: fieldError('openaiApiKey') } : {})} />
           )}
           <div className="flex flex-col gap-1">
             <GuideLink onClick={() => openGuide('openai')}>Как получить ключ OpenAI?</GuideLink>
-            <GuideLink onClick={() => openGuide('local-whisper')}>Как настроить локальный Whisper?</GuideLink>
+            {!buildConfig.youtubeOnly && <GuideLink onClick={() => openGuide('local-whisper')}>Как настроить локальный Whisper?</GuideLink>}
           </div>
         </Section>
 
@@ -201,6 +204,7 @@ export function SettingsScreen() {
             <span className="mb-1 block text-sm font-medium text-slate-700">Тип видео по умолчанию</span>
             <VideoTypeSelector value={draft.defaultVideoType} onChange={(v) => set('defaultVideoType', v)} />
           </div>
+          {!buildConfig.youtubeOnly && (
           <label className="block">
             <span className="mb-1 flex items-center gap-1.5 text-sm font-medium text-slate-700">
               <Server size={14} /> Адрес сервера VideoNote
@@ -223,6 +227,7 @@ export function SettingsScreen() {
               </span>
             )}
           </label>
+          )}
         </Section>
       </div>
 

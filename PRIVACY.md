@@ -2,7 +2,7 @@
 
 _Действует с 20 октября 2026 г._
 
-VideoNote Taker — расширение Chrome, которое создаёт конспекты видео (YouTube, Rutube, VK Видео) с таймкодами. Мы стараемся обрабатывать как можно меньше данных и не храним их у себя.
+VideoNote Taker — расширение Chrome, которое создаёт конспекты видео YouTube с таймкодами. У расширения нет своего сервера: мы не получаем и не храним ваши данные.
 
 ## Какие данные обрабатываются
 
@@ -11,7 +11,6 @@ VideoNote Taker — расширение Chrome, которое создаёт �
 | Ваши конспекты, транскрипты и скриншоты | Только в вашем браузере (`chrome.storage.local`) | Никому |
 | Ключи API (Groq, OpenAI) и настройки | Только в вашем браузере | Ключ используется только для запросов к соответствующему сервису (см. ниже) |
 | Текст субтитров видео | Получается в вашем браузере со страницы видео | Отправляется в Groq или OpenAI **по вашему ключу** — чтобы составить конспект |
-| Ссылка на видео (Rutube, VK Видео) | — | Отправляется на сервер VideoNote, указанный в настройках, — чтобы получить субтитры. Сервер не хранит ссылки дольше 30 дней и не связывает их с вами |
 | Звук вкладки (только если вы включили «Запись в реальном времени») | Не сохраняется | Отправляется в OpenAI Whisper по вашему ключу для распознавания речи |
 
 ## Что мы НЕ делаем
@@ -35,4 +34,4 @@ VideoNote Taker — расширение Chrome, которое создаёт �
 
 # VideoNote Taker Privacy Policy (English)
 
-VideoNote Taker creates timestamped notes for videos. Notes, transcripts, screenshots, settings and API keys are stored **only locally** in your browser. Video captions are read in your browser and sent to Groq or OpenAI **using your own API key** to generate the summary. For Rutube/VK videos the video link is sent to the VideoNote server configured in settings to fetch captions; it is not linked to you and is deleted within 30 days. Tab audio is processed only if you enable real-time transcription (sent to OpenAI Whisper with your key). We do not sell data, track browsing, show ads or use data for unrelated purposes. Uninstalling the extension deletes all data.
+VideoNote Taker creates timestamped notes for YouTube videos. The extension has no server of its own. Notes, transcripts, screenshots, settings and API keys are stored **only locally** in your browser. YouTube captions are read in your browser and sent to Groq or OpenAI **using your own API key** to generate the summary. Tab audio is processed only if you enable real-time transcription (sent to OpenAI Whisper with your key). We do not sell data, track browsing, show ads or use data for unrelated purposes. Uninstalling the extension deletes all data.

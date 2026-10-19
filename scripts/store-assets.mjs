@@ -29,7 +29,7 @@ const slides = [
   { file: '1-summary.png', title: 'Конспект <span>рядом с видео</span>', sub: 'Идеи, суть и таймкоды — клик по таймкоду перематывает видео', images: [['3-sidebar-summary.png', 1060]] },
   { file: '2-types.png', title: 'Свой конспект для <span>каждого типа видео</span>', sub: 'Интервью: идеи, цитаты, выводы · Урок: мысли и советы ИИ · Фильм: герои и оценка', images: [['3b-sidebar-interview.png', 1060]] },
   { file: '3-screenshots.png', title: 'Скриншоты кадров <span>с таймкодами</span>', sub: 'Ctrl+Shift+S — кадр сохраняется в конспект, можно добавить комментарий', images: [['4-sidebar-screenshots.png', 1060]] },
-  { file: '4-popup.png', title: 'Конспект <span>по ссылке</span> и история', sub: 'YouTube, Rutube и VK Видео · экспорт в Word и Markdown', images: [['7-popup-note.png', 400], ['8-popup-history.png', 400]] },
+  { file: '4-popup.png', title: 'Конспект <span>по ссылке</span> и история', sub: 'Вставьте ссылку на видео YouTube · экспорт в Word и Markdown', images: [['7-popup-note.png', 400], ['8-popup-history.png', 400]] },
   { file: '5-free.png', title: '<span>Бесплатно</span>: нужен только ключ Groq', sub: 'Ключи хранятся только в вашем браузере · по желанию — OpenAI Whisper и GPT-4o', images: [['2-settings-saved.png', 760]] },
 ];
 

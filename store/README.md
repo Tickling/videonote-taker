@@ -3,10 +3,9 @@
 ## Что нужно заранее
 1. **Публичный репозиторий** — https://github.com/Tickling/videonote-taker → Settings → Danger Zone → Change visibility → Public.
    Нужен для страницы политики конфиденциальности и установки сервера.
-2. **Сервер** (необязательно, для Rutube/VK) — см. `deploy/README.md`. Получите его адрес `https://…`.
-3. **Пакет расширения** с адресом сервера:
-   `VITE_BACKEND_URL=https://АДРЕС npm run store:package` → `release/VideoNote-Taker-ChromeWebStore-1.0.0.zip`
-   (без сервера: `npm run store:package` — YouTube работает, Rutube/VK — только со своим сервером).
+2. **Пакет расширения** (версия «только YouTube», сервер не нужен):
+   `npm run store:package` → `release/VideoNote-Taker-ChromeWebStore-1.0.0.zip`
+   (Rutube/VK появятся позже: понадобится сервер, см. `deploy/README.md`).
 
 ## Шаги в магазине
 1. Откройте https://chrome.google.com/webstore/devconsole, войдите в Google-аккаунт.

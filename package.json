@@ -20,7 +20,8 @@
     "guides": "npm run guides -w extension",
     "release": "npm run build && node scripts/make-release.mjs",
     "store:assets": "node scripts/store-assets.mjs",
-    "store:package": "npm run build:store -w extension && node scripts/make-release.mjs --store"
+    "store:package": "npm run build:store -w extension && node scripts/make-release.mjs --store",
+    "e2e:store": "npm run build:store-e2e -w extension && node e2e/run.mjs"
   },
   "devDependencies": {
     "jszip": "^3.10.2",

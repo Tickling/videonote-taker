@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_GROQ_BASE_URL?: string;
   readonly VITE_STORE_BUILD?: string;
   readonly VITE_YOUTUBE_VIA_SERVER?: string;
+  readonly VITE_YOUTUBE_ONLY?: string;
 }
 
 interface ImportMeta {

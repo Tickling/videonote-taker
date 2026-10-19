@@ -15,3 +15,4 @@ e2e/output/
 release/
 dist-store/
 deploy/.env
+dist-store-e2e/

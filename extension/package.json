@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "guides": "node scripts/build-guides.mjs",
     "build:e2e": "VITE_GROQ_BASE_URL=http://127.0.0.1:4010 vite build --outDir dist-e2e",
-    "build:store": "VITE_STORE_BUILD=true vite build --outDir dist-store"
+    "build:store": "VITE_STORE_BUILD=true vite build --outDir dist-store",
+    "build:store-e2e": "VITE_STORE_BUILD=true VITE_GROQ_BASE_URL=http://127.0.0.1:4010 vite build --outDir dist-store-e2e"
   },
   "dependencies": {
     "docx": "^9.5.1",

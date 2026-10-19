@@ -12,6 +12,8 @@ import { chromium } from 'playwright-core';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'e2e', 'output');
 const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+// E2E_STORE=1 — проверка версии для Chrome Web Store (только YouTube, без сервера)
+const STORE = process.env.E2E_STORE === '1';
 const LLM_PORT = 4010;
 const BACKEND_PORT = 3000;
 mkdirSync(out, { recursive: true });
@@ -124,8 +126,8 @@ for (let i = 0; i < 50; i += 1) {
 }
 
 // ---------- браузер с расширением ----------
-const extPath = join(root, 'extension', 'dist-e2e');
-if (!existsSync(join(extPath, 'manifest.json'))) throw new Error('Соберите e2e-версию: npm run build:e2e -w extension');
+const extPath = join(root, 'extension', STORE ? 'dist-store-e2e' : 'dist-e2e');
+if (!existsSync(join(extPath, 'manifest.json'))) throw new Error(`Соберите e2e-версию: npm run ${STORE ? 'build:store-e2e' : 'build:e2e'} -w extension`);
 const context = await chromium.launchPersistentContext(join(tmp, 'profile'), {
   executablePath: CHROME,
   // chrome.downloads недоступен в headless — запускаем с экраном (xvfb-run в CI)
@@ -236,9 +238,13 @@ await settings.goto(`chrome-extension://${extId}/src/ui/settings/index.html`);
 await settings.setViewportSize({ width: 900, height: 1300 });
 await settings.getByText('Текущий: ').first().waitFor();
 await settings.screenshot({ path: join(out, '1-settings.png'), fullPage: true });
-await settings.getByRole('button', { name: 'Проверить' }).click();
-await settings.getByText('Сервер работает').waitFor({ timeout: 10000 });
-check('настройки: проверка сервера', true);
+if (STORE) {
+  check('магазин: в настройках нет сервера и локального Whisper', (await settings.getByText('Адрес сервера VideoNote').count()) === 0 && (await settings.getByText('Локальный Whisper').count()) === 0);
+} else {
+  await settings.getByRole('button', { name: 'Проверить' }).click();
+  await settings.getByText('Сервер работает').waitFor({ timeout: 10000 });
+  check('настройки: проверка сервера', true);
+}
 await settings.getByPlaceholder('gsk_...').fill('gsk_e2e_test_key');
 await settings.getByRole('button', { name: 'Сохранить' }).click();
 await settings.getByText('Настройки сохранены ✅').waitFor({ timeout: 10000 });
@@ -246,11 +252,13 @@ check('настройки: ключ Groq проверен и сохранён', 
 await settings.screenshot({ path: join(out, '2-settings-saved.png'), fullPage: true });
 
 // Неверный формат адреса сервера → ошибка
-await settings.locator('input.font-mono').last().fill('localhost:3000');
-await settings.getByRole('button', { name: 'Сохранить' }).click();
-await settings.getByText('должен начинаться с http').waitFor();
-check('настройки: валидация адреса сервера', true);
-await settings.getByRole('button', { name: 'Отмена' }).click();
+if (!STORE) {
+  await settings.locator('input.font-mono').last().fill('localhost:3000');
+  await settings.getByRole('button', { name: 'Сохранить' }).click();
+  await settings.getByText('должен начинаться с http').waitFor();
+  check('настройки: валидация адреса сервера', true);
+  await settings.getByRole('button', { name: 'Отмена' }).click();
+}
 
 // 2. Страница видео → sidebar → конспект
 const page = await context.newPage();
@@ -361,22 +369,27 @@ const popup = await context.newPage();
 watch(popup);
 await popup.setViewportSize({ width: 400, height: 590 });
 await popup.goto(`chrome-extension://${extId}/src/ui/popup/index.html`);
-await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://www.youtube.com/watch?v=nosubs0001');
+await popup.getByPlaceholder(/YouTube/).fill('https://www.youtube.com/watch?v=nosubs0001');
 await popup.getByText('✓ YouTube').waitFor();
 await popup.getByRole('button', { name: /Создать конспект/ }).click();
 await popup.getByText(/нет автосубтитров/).waitFor({ timeout: 15000 });
 check('popup: видео без субтитров → подсказка добавить ключ', true);
 await popup.screenshot({ path: join(out, '6-popup-no-subtitles.png') });
 
-await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/');
-await popup.getByText('✓ Rutube').waitFor();
-check('popup: автоопределение платформы Rutube', true);
-await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://vk.com/video-999_1');
-await popup.getByRole('button', { name: /Создать конспект/ }).click();
-await popup.getByText(/приватное/).waitFor({ timeout: 15000 });
-check('popup: приватное видео VK (через сервер) → понятная ошибка', true);
+await popup.getByPlaceholder(/YouTube/).fill('https://rutube.ru/video/c6cc4d620b1d4338901770a44b3e82f4/');
+if (STORE) {
+  await popup.getByText('пока только YouTube').waitFor();
+  check('магазин: ссылка Rutube → «пока только YouTube», кнопка неактивна', await popup.getByRole('button', { name: /Создать конспект/ }).isDisabled());
+} else {
+  await popup.getByText('✓ Rutube').waitFor();
+  check('popup: автоопределение платформы Rutube', true);
+  await popup.getByPlaceholder(/YouTube/).fill('https://vk.com/video-999_1');
+  await popup.getByRole('button', { name: /Создать конспект/ }).click();
+  await popup.getByText(/приватное/).waitFor({ timeout: 15000 });
+  check('popup: приватное видео VK (через сервер) → понятная ошибка', true);
+}
 
-await popup.getByPlaceholder(/Ссылка на YouTube/).fill('https://youtu.be/lesson0001');
+await popup.getByPlaceholder(/YouTube/).fill('https://youtu.be/lesson0001');
 await popup.getByText('Основы Python за 10 минут').first().waitFor();
 await popup.waitForTimeout(500);
 await popup.screenshot({ path: join(out, '7-popup-note.png') });

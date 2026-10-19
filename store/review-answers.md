@@ -3,7 +3,7 @@
 Магазин проверяет эти ответы — копируйте как есть (на английском: так проверка проходит быстрее).
 
 ## Single purpose (Единственное назначение)
-Creates structured, timestamped notes (summaries) for online videos on YouTube, Rutube and VK Video from their captions, with screenshots and export to Word/Markdown.
+Creates structured, timestamped notes (summaries) for YouTube videos from their captions, with screenshots and export to Word/Markdown.
 
 ## Permission justification (Обоснование разрешений)
 
@@ -18,7 +18,7 @@ Creates structured, timestamped notes (summaries) for online videos on YouTube, 
 | `scripting` | After installation/update, injects the extension's own content script into already open YouTube tabs so the feature works without reloading the page. |
 | Host `youtube.com` | Reads video captions (subtitles) of the video the user is watching to build the note. |
 | Host `api.groq.com`, `api.openai.com` | Sends the caption text to the AI provider selected by the user, using the user's own API key, to generate the summary. |
-| Content scripts (YouTube, Rutube, VK) | Shows the note button and side panel next to the video, seeks the video when a timestamp is clicked, captures video frames for screenshots. |
+| Content scripts (YouTube) | Shows the note button and side panel next to the video, seeks the video when a timestamp is clicked, captures video frames for screenshots; a small page-context script captures the caption file the YouTube player itself downloads when the user requests a note. |
 
 ## Remote code
 No, I am not using remote code. (Весь код находится в пакете расширения.)
@@ -26,7 +26,6 @@ No, I am not using remote code. (Весь код находится в паке�
 ## Data usage (Какие данные собираются)
 Отметьте:
 - ☑ **Website content** — text of video captions is sent to the user-selected AI provider (Groq/OpenAI) to generate notes.
-- ☑ **Web history** — the URL of a Rutube/VK video is sent to the VideoNote server only when the user requests a note for it.
 
 Остальное (личные данные, здоровье, финансы, аутентификация, переписка, местоположение, активность пользователя) — **не отмечать**.
 

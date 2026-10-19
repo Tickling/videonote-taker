@@ -9,6 +9,8 @@ export const buildConfig = {
    * (правила магазина запрещают скачивание видео с YouTube; сервер — для Rutube и VK).
    */
   storeBuild: import.meta.env.VITE_STORE_BUILD === 'true',
+  /** Только YouTube, без сервера (сборка для Chrome Web Store; Rutube/VK — позже) */
+  youtubeOnly: import.meta.env.VITE_STORE_BUILD === 'true' || import.meta.env.VITE_YOUTUBE_ONLY === 'true',
   /** Запасной путь YouTube через свой сервер (только если у сервера есть доступ к YouTube) */
   youtubeViaServer: import.meta.env.VITE_YOUTUBE_VIA_SERVER === 'true',
 } as const;

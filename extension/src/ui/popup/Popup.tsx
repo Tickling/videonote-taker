@@ -1,7 +1,8 @@
 import { ArrowLeft, Link2, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { VideoNote } from '@domain/entities/VideoNote';
-import { VIDEO_PLATFORMS, type VideoPlatform } from '@domain/valueObjects/VideoPlatform';
+import { VIDEO_PLATFORMS, VideoPlatform } from '@domain/valueObjects/VideoPlatform';
+import { buildConfig } from '@infrastructure/config';
 import { VIDEO_TYPES, type VideoType } from '@domain/valueObjects/VideoType';
 import { VideoUrl } from '@domain/valueObjects/VideoUrl';
 import { PLATFORM_LABELS, VIDEO_TYPE_LABELS } from '@infrastructure/exporters/labels';
@@ -13,6 +14,11 @@ import { useContainer, useNote, useNotesList, useRealtime, useSettings, useTask 
 import { NoteMeta, NoteView } from '../shared/NoteView';
 
 type Screen = 'new' | 'history';
+
+/** В сборке «только YouTube» ссылки Rutube/VK не принимаются. */
+function isAllowed(url: VideoUrl): boolean {
+  return !buildConfig.youtubeOnly || url.getPlatform() === VideoPlatform.YOUTUBE;
+}
 
 function errorPayload(error: unknown): { code: string; message: string } {
   const e = error as Error & { code?: string };
@@ -31,7 +37,8 @@ function NewNoteScreen() {
   // Ссылка из активной вкладки, если это видео
   useEffect(() => {
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.url && VideoUrl.isSupported(tab.url)) {
+      const tabVideo = tab?.url ? VideoUrl.tryCreate(tab.url) : null;
+      if (tab?.url && tabVideo && isAllowed(tabVideo)) {
         setUrl(tab.url);
         setTitle(tab.title?.replace(/^\(\d+\)\s*/, '').replace(/\s*[-|—]\s*(YouTube|RUTUBE|VK.*)$/i, ''));
         setActiveTabId(tab.id ?? null);
@@ -39,7 +46,8 @@ function NewNoteScreen() {
     });
   }, []);
 
-  const videoUrl = useMemo(() => VideoUrl.tryCreate(url), [url]);
+  const parsedUrl = useMemo(() => VideoUrl.tryCreate(url), [url]);
+  const videoUrl = parsedUrl && isAllowed(parsedUrl) ? parsedUrl : null;
   const noteId = videoUrl?.getKey() ?? null;
   const { note } = useNote(noteId);
   const task = useTask(noteId);
@@ -70,7 +78,7 @@ function NewNoteScreen() {
                 setTitle(undefined);
                 setActiveTabId(null);
               }}
-              placeholder="Ссылка на YouTube, Rutube или VK Видео"
+              placeholder={buildConfig.youtubeOnly ? 'Ссылка на видео YouTube' : 'Ссылка на YouTube, Rutube или VK Видео'}
               className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-24 text-sm focus:border-orange-400 focus:outline-none"
             />
             {url && (
@@ -80,7 +88,7 @@ function NewNoteScreen() {
                   videoUrl ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600',
                 )}
               >
-                {videoUrl ? `✓ ${PLATFORM_LABELS[videoUrl.getPlatform()]}` : 'не поддерживается'}
+                {videoUrl ? `✓ ${PLATFORM_LABELS[videoUrl.getPlatform()]}` : parsedUrl ? 'пока только YouTube' : 'не поддерживается'}
               </span>
             )}
           </label>
@@ -189,14 +197,16 @@ function HistoryScreen() {
           />
         </div>
         <div className="flex gap-2">
-          <select value={platform} onChange={(e) => setPlatform(e.target.value as VideoPlatform | '')} className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs" aria-label="Платформа">
-            <option value="">Все платформы</option>
-            {VIDEO_PLATFORMS.map((p) => (
-              <option key={p} value={p}>
-                {PLATFORM_LABELS[p]}
-              </option>
-            ))}
-          </select>
+          {!buildConfig.youtubeOnly && (
+            <select value={platform} onChange={(e) => setPlatform(e.target.value as VideoPlatform | '')} className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs" aria-label="Платформа">
+              <option value="">Все платформы</option>
+              {VIDEO_PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {PLATFORM_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          )}
           <select value={type} onChange={(e) => setType(e.target.value as VideoType | '')} className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs" aria-label="Тип видео">
             <option value="">Все типы</option>
             {VIDEO_TYPES.map((t) => (
