@@ -1,0 +1,4 @@
+# Скрипты для Windows — только с переводами строк CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+release-template/README.txt text eol=crlf
