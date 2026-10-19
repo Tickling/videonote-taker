@@ -26,7 +26,9 @@ export interface RunOptions {
 /** Запуск внешней программы без shell (аргументы не интерпретируются — нет инъекций). */
 export function runCommand(bin: string, args: string[], options: RunOptions = {}): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd: options.cwd, windowsHide: true });
+    // yt-dlp (Python) на Windows иначе пишет ошибки в кодировке консоли (cp866/cp1251)
+    const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+    const child = spawn(bin, args, { cwd: options.cwd, windowsHide: true, env });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let timedOut = false;

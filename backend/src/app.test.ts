@@ -125,6 +125,7 @@ describe('HTTP API', () => {
       ['https://www.youtube.com/watch?v=nosubs00002', 'subtitles', 'SUBTITLES_NOT_FOUND'],
       ['https://www.youtube.com/watch?v=private0001', 'auto', 'VIDEO_PRIVATE'],
       ['https://www.youtube.com/watch?v=removed0001', 'auto', 'VIDEO_UNAVAILABLE'],
+      ['https://www.youtube.com/watch?v=netfail0001', 'auto', 'NETWORK_ERROR'],
     ];
     for (const [videoUrl, transcriptionMode, code] of cases) {
       const res = await app.inject({ method: 'POST', url: '/api/transcribe-by-url', payload: { videoUrl, transcriptionMode } });

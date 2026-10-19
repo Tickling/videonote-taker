@@ -67,7 +67,7 @@ export async function buildApp(env: Env): Promise<FastifyInstance> {
   await repository.deleteOlderThan(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
   const ytDlp = new YtDlpAdapter(
-    { bin: env.YTDLP_PATH, ffmpegPath: env.FFMPEG_PATH !== 'ffmpeg' ? env.FFMPEG_PATH : undefined, extraArgs: env.YTDLP_EXTRA_ARGS, useNodeJsRuntime: env.YTDLP_USE_NODE_JS_RUNTIME },
+    { bin: env.YTDLP_PATH, ffmpegPath: env.FFMPEG_PATH !== 'ffmpeg' ? env.FFMPEG_PATH : undefined, extraArgs: env.YTDLP_EXTRA_ARGS, proxy: env.YTDLP_PROXY, useNodeJsRuntime: env.YTDLP_USE_NODE_JS_RUNTIME },
     logger.child({ component: 'yt-dlp' }),
   );
   const ffmpeg = new FfmpegAudio(env.FFMPEG_PATH);

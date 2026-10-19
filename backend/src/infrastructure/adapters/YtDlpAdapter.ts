@@ -9,6 +9,8 @@ export interface YtDlpConfig {
   bin: string;
   ffmpegPath?: string | undefined;
   extraArgs: string[];
+  /** Прокси (например, от VPN-клиента): socks5://127.0.0.1:10808 или http://127.0.0.1:2080 */
+  proxy?: string | undefined;
   /** Передать yt-dlp текущий Node как JS-движок (нужен YouTube с 2025 г.) */
   useNodeJsRuntime: boolean;
 }
@@ -52,6 +54,13 @@ function classify(error: unknown, action: string): AppError {
     }
     if (/sign in to confirm your age|age[- ]restricted|inappropriate for some users/i.test(stderr)) {
       return new AppError('VIDEO_PRIVATE', 'Видео с возрастным ограничением требует входа в аккаунт — обработать его нельзя.', stderr);
+    }
+    if (/ConnectionResetError|Connection aborted|Connection refused|timed out|getaddrinfo|Network is unreachable|Unable to download (API|webpage)|SSL: |EOF occurred|RemoteDisconnected|10054|10060/i.test(stderr)) {
+      return new AppError(
+        'NETWORK_ERROR',
+        'Сервер не может подключиться к сайту видео (соединение сбрасывается). Если YouTube открывается у вас только через VPN — включите VPN для всего компьютера, а не только в браузере, или укажите прокси VPN в файле server/.env (строка YTDLP_PROXY). Затем нажмите «Повторить».',
+        stderr,
+      );
     }
     if (/not a bot/i.test(stderr)) {
       return new AppError('VIDEO_UNAVAILABLE', 'YouTube временно ограничил доступ серверу (проверка «не бот»). Попробуйте позже или обновите yt-dlp.', stderr);
@@ -155,7 +164,8 @@ export class YtDlpAdapter implements IVideoInfoProvider, IAudioDownloader {
   }
 
   private async baseArgs(): Promise<string[]> {
-    const args = ['--no-playlist', '--no-warnings', '--no-progress', '--retries', '3', '--extractor-retries', '3', '--socket-timeout', '30'];
+    const args = ['--no-playlist', '--no-warnings', '--no-progress', '--retries', '2', '--extractor-retries', '1', '--socket-timeout', '20'];
+    if (this.config.proxy) args.push('--proxy', this.config.proxy);
     if (this.config.ffmpegPath) args.push('--ffmpeg-location', this.config.ffmpegPath);
     if (this.config.useNodeJsRuntime && (await this.supportsJsRuntimes())) args.push('--js-runtimes', `node:${process.execPath}`);
     return [...args, ...this.config.extraArgs];

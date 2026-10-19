@@ -22,6 +22,10 @@ if (id.startsWith('private')) {
   console.error(`ERROR: [youtube] ${id}: Private video. Sign in if you've been granted access to this video`);
   process.exit(1);
 }
+if (id.startsWith('netfail')) {
+  console.error(`ERROR: [youtube] ${id}: Unable to download API page: ('Connection aborted.', ConnectionResetError(10054, 'Удаленный хост принудительно разорвал существующее подключение', None, 10054, None))`);
+  process.exit(1);
+}
 if (id.startsWith('removed')) {
   console.error(`ERROR: [youtube] ${id}: Video unavailable. This video has been removed by the uploader`);
   process.exit(1);

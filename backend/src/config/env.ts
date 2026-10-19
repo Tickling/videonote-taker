@@ -27,6 +27,7 @@ const EnvSchema = z.object({
     .string()
     .default('')
     .transform((v) => v.split(' ').filter(Boolean)),
+  YTDLP_PROXY: optionalString,
   YTDLP_USE_NODE_JS_RUNTIME: z
     .enum(['true', 'false'])
     .default('true')
