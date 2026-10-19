@@ -1,0 +1,37 @@
+{
+  "name": "@videonote/extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "guides": "node scripts/build-guides.mjs",
+    "build:e2e": "VITE_GROQ_BASE_URL=http://127.0.0.1:4010 vite build --outDir dist-e2e"
+  },
+  "dependencies": {
+    "docx": "^9.5.1",
+    "lucide-react": "^0.544.0",
+    "openai": "^5.23.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.0",
+    "@types/chrome": "^0.1.12",
+    "@types/node": "^20.19.0",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.9.2",
+    "vite": "^6.3.6",
+    "vitest": "~4.0.18"
+  }
+}

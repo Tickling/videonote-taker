@@ -1,0 +1,85 @@
+{
+  "manifest_version": 3,
+  "name": "VideoNote Taker",
+  "description": "Автоматическая транскрибация видео и конспекты с таймкодами. Бесплатно по умолчанию, мощно по желанию.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "VideoNote Taker",
+    "default_popup": "src/ui/popup/index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "options_page": "src/ui/settings/index.html",
+  "background": {
+    "service_worker": "src/background/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://rutube.ru/*",
+        "https://vk.com/*",
+        "https://vk.ru/*",
+        "https://vkvideo.ru/*"
+      ],
+      "js": [
+        "src/content/content.ts"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "tabCapture",
+    "activeTab",
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "offscreen",
+    "downloads"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://api.groq.com/*",
+    "https://api.openai.com/*"
+  ],
+  "commands": {
+    "take-screenshot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Сделать скриншот видео с привязкой к таймкоду"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/ui/sidebar/index.html",
+        "guides/*.pdf",
+        "icons/*.png"
+      ],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://rutube.ru/*",
+        "https://vk.com/*",
+        "https://vk.ru/*",
+        "https://vkvideo.ru/*"
+      ]
+    }
+  ]
+}

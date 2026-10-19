@@ -1,0 +1,27 @@
+{
+  "name": "videonote-taker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Chrome Extension + Node.js backend: транскрибация видео и конспекты с таймкодами",
+  "workspaces": [
+    "extension",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev:extension": "npm run dev -w extension",
+    "dev:backend": "npm run dev -w backend",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "e2e": "npm run build -w backend && npm run build:e2e -w extension && node e2e/run.mjs",
+    "guides": "npm run guides -w extension",
+    "release": "npm run build && node scripts/make-release.mjs"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.2",
+    "playwright-core": "^1.56.1"
+  }
+}

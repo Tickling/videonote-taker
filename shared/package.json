@@ -1,0 +1,7 @@
+{
+  "name": "@videonote/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Общий код расширения и backend: промпты, разбор ответа LLM, URL видео"
+}
