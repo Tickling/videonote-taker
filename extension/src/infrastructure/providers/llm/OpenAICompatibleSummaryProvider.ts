@@ -130,6 +130,12 @@ export abstract class OpenAICompatibleSummaryProvider implements ISummaryService
         detailedNotes: raw.detailedNotes,
         keyPoints: raw.keyPoints.map((k) => ({ text: k.text, timestamp: Timestamp.of(k.timestamp) })),
         quotes: raw.quotes.map((q) => ({ text: q.text, timestamp: Timestamp.of(q.timestamp) })),
+        ideas: raw.ideas,
+        conclusions: raw.conclusions,
+        characters: raw.characters,
+        rating: raw.rating,
+        furtherReading: raw.furtherReading,
+        example: raw.example,
         videoType,
         provider: this.config.provider,
       };

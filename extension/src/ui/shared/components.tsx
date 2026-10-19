@@ -2,7 +2,7 @@ import { AlertTriangle, BookOpen, CheckCircle2, Loader2, Settings, X } from 'luc
 import type { ReactNode } from 'react';
 import { SUPPORTED_LANGUAGES } from '@domain/valueObjects/Language';
 import { VIDEO_TYPES, type VideoType } from '@domain/valueObjects/VideoType';
-import { VIDEO_TYPE_LABELS } from '@infrastructure/exporters/labels';
+import { VIDEO_TYPE_HINTS, VIDEO_TYPE_LABELS } from '@infrastructure/exporters/labels';
 import { openGuide, openSettings } from './actions';
 
 export function cx(...classes: Array<string | false | null | undefined>): string {
@@ -86,29 +86,37 @@ export function Header({ title = 'VideoNote Taker', onClose, extra }: { title?: 
 
 export function VideoTypeSelector({ value, onChange, compact }: { value: VideoType; onChange: (v: VideoType) => void; compact?: boolean }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Тип видео">
-      {VIDEO_TYPES.map((type) => {
-        const { emoji, label } = VIDEO_TYPE_LABELS[type];
-        const active = type === value;
-        return (
-          <button
-            key={type}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(type)}
-            title={label}
-            className={cx(
-              'flex flex-col items-center rounded-lg border px-1 transition',
-              compact ? 'py-1' : 'py-2',
-              active ? 'border-orange-400 bg-orange-50 text-orange-700 ring-1 ring-orange-300' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-            )}
-          >
-            <span className={compact ? 'text-base' : 'text-xl'}>{emoji}</span>
-            <span className="text-[11px] font-medium">{label}</span>
-          </button>
-        );
-      })}
+    <div>
+      <div className="grid grid-cols-4 gap-1.5" role="radiogroup" aria-label="Тип видео">
+        {VIDEO_TYPES.map((type) => {
+          const { emoji, label } = VIDEO_TYPE_LABELS[type];
+          const active = type === value;
+          return (
+            <button
+              key={type}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(type)}
+              title={`${label}: ${VIDEO_TYPE_HINTS[type]}`}
+              className={cx(
+                'flex flex-col items-center rounded-lg border px-1 transition',
+                compact ? 'py-1' : 'py-2',
+                active ? 'border-orange-400 bg-orange-50 text-orange-700 ring-1 ring-orange-300' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              <span className={compact ? 'text-base' : 'text-xl'}>{emoji}</span>
+              <span className="text-[11px] font-medium">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1.5 flex gap-1 text-[11px] leading-snug text-slate-500" aria-live="polite">
+        <span aria-hidden>💡</span>
+        <span>
+          <b className="font-medium text-slate-600">В конспекте:</b> {VIDEO_TYPE_HINTS[value].charAt(0).toLowerCase() + VIDEO_TYPE_HINTS[value].slice(1)}
+        </span>
+      </p>
     </div>
   );
 }

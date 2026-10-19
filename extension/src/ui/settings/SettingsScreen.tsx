@@ -173,9 +173,9 @@ export function SettingsScreen() {
         </Section>
 
         <Section icon={<Brain size={18} className="text-orange-500" />} title="Саммаризация">
-          <Current free={groqSelected}>{groqSelected ? 'Groq Llama 3.3 (бесплатно)' : 'OpenAI GPT-4o (платно)'}</Current>
+          <Current free={groqSelected}>{groqSelected ? 'Groq (бесплатно)' : 'OpenAI GPT-4o (платно)'}</Current>
           <div className="space-y-2">
-            <Radio checked={groqSelected} onChange={() => set('summaryProvider', SummaryProvider.GROQ)} title="Groq (бесплатно)" hint="Llama 3.3 70B · 30 запросов/мин, 14 400 в день" />
+            <Radio checked={groqSelected} onChange={() => set('summaryProvider', SummaryProvider.GROQ)} title="Groq (бесплатно)" hint="Модель выбирается автоматически (GPT-OSS 120B и др.) · бесплатный лимит" />
             <Radio checked={!groqSelected} onChange={() => set('summaryProvider', SummaryProvider.OPENAI_GPT4O)} title="OpenAI GPT-4o (платно)" hint="Качественнее на сложных темах · ≈ 10 ₽ за час видео" />
           </div>
           <KeyInput

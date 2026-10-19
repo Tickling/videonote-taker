@@ -34,7 +34,7 @@ export function createVideoNote(params: CreateVideoNoteParams): VideoNote {
   return {
     id: params.videoUrl.getKey(),
     videoUrl: params.videoUrl,
-    title: params.title?.trim() || params.videoUrl.getCanonicalUrl(),
+    title: cleanVideoTitle(params.title ?? '') || params.videoUrl.getCanonicalUrl(),
     videoType: params.videoType,
     platform: params.videoUrl.getPlatform(),
     createdAt: now,
@@ -44,6 +44,14 @@ export function createVideoNote(params: CreateVideoNoteParams): VideoNote {
     screenshots: [],
     language: params.language,
   };
+}
+
+/** Убирает счётчик уведомлений «(15) » и название сайта из заголовка вкладки. */
+export function cleanVideoTitle(title: string): string {
+  return title
+    .replace(/^\(\d+\)\s*/, '')
+    .replace(/\s*[-|—]\s*(YouTube|RUTUBE|VK Видео|VK)$/i, '')
+    .trim();
 }
 
 export function hasContent(note: VideoNote): boolean {

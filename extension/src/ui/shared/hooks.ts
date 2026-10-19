@@ -64,7 +64,8 @@ export function useNote(noteId: string | null): { note: VideoNote | null; loaded
   return { note, loaded };
 }
 
-const STALE_TASK_MS = 3 * 60 * 1000;
+// Живая задача обновляется раз в 20 с (пульс в background) — дольше 90 с тишины значит прервана
+const STALE_TASK_MS = 90 * 1000;
 
 export function useTask(noteId: string | null): TaskState | null {
   const [task, setTask] = useState<TaskState | null>(null);

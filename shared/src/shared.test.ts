@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatTranscriptForPrompt, splitTranscript, buildSummaryPrompt } from './prompts';
-import { parseSummary, SummaryParseError } from './summaryContract';
+import { emptySummary, parseSummary, SummaryParseError } from './summaryContract';
+import { buildSummarySections } from './summaryLayout';
 import { summarizeTranscript } from './summarize';
 import { summaryToMarkdown } from './summaryMarkdown';
 
@@ -23,6 +24,7 @@ describe('shared/prompts', () => {
   it('builds type-specific prompts in the target language', () => {
     const prompt = buildSummaryPrompt({ videoType: 'interview', language: 'en', transcript: '[00:00] hi' });
     expect(prompt.system).toContain('ИНТЕРВЬЮ');
+    expect(prompt.system).toContain('conclusions');
     expect(prompt.system).toContain('английском');
     expect(prompt.user).toContain('[00:00] hi');
   });
@@ -51,47 +53,89 @@ describe('shared/summaryContract', () => {
     expect(() => parseSummary('no json here')).toThrow(SummaryParseError);
     expect(() => parseSummary('{"foo":1}')).toThrow(SummaryParseError);
   });
+
+  it('parses the new type-specific fields', () => {
+    const s = parseSummary(JSON.stringify({ shortResume: 'S', timecodes: [{ text: 'a', timestamp: '1:00' }], characters: [{ name: 'Нео', role: 'избранный' }], rating: { score: '8.5', comment: 'ok' }, furtherReading: ['SICP'], ideas: ['i'], conclusions: ['c'], example: 'e' }));
+    expect(s.keyPoints).toEqual([{ text: 'a', timestamp: 60 }]);
+    expect(s.characters).toEqual([{ name: 'Нео', role: 'избранный' }]);
+    expect(s.rating).toEqual({ score: 8.5, comment: 'ok' });
+    expect(s.furtherReading).toEqual([{ title: 'SICP', why: '' }]);
+  });
 });
 
 describe('shared/summarize', () => {
-  const answer = JSON.stringify({ shortResume: 'ok', keyPoints: [], detailedNotes: 'n', quotes: [] });
+  const answer = JSON.stringify({ shortResume: 'ok', ideas: ['идея'], timecodes: [{ text: 't', timestamp: 5 }] });
 
   it('makes a single request for short transcripts', async () => {
     const calls: string[] = [];
     const result = await summarizeTranscript(
       async (p) => {
-        calls.push(p.user);
+        calls.push(p.system);
         return answer;
       },
       { segments: [{ start: 0, text: 'x' }], videoType: 'educational', language: 'ru', maxCharsPerRequest: 1000 },
     );
     expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('furtherReading');
+    expect(result.shortResume).toBe('ok');
+    expect(result.keyPoints).toEqual([{ text: 't', timestamp: 5 }]);
+  });
+
+  it('long videos: parts, compact merge, local timecodes; retries broken json once', async () => {
+    const prompts: Array<{ system: string; user: string }> = [];
+    const segments = Array.from({ length: 10 }, (_, i) => ({ start: i * 40, text: 'слово '.repeat(20) }));
+    const result = await summarizeTranscript(
+      async (p) => {
+        prompts.push(p);
+        if (prompts.length === 1) return 'not json';
+        if (p.user.includes('Часть 1:')) return JSON.stringify({ shortResume: 'итог', ideas: ['общая идея'], conclusions: ['вывод'] });
+        const n = prompts.length;
+        return JSON.stringify({ shortResume: `часть ${n}`, ideas: [`идея ${n}`], quotes: [{ text: `цитата ${n}`, timestamp: n * 100 }], timecodes: [{ text: `момент ${n}`, timestamp: n * 100 }] });
+      },
+      { segments, videoType: 'interview', language: 'ru', maxCharsPerRequest: 300 },
+    );
+    const merge = prompts[prompts.length - 1];
+    expect(merge?.user).toContain('Часть 1:');
+    expect(merge?.user).not.toContain('[00:'); // в объединение транскрипт не отправляется
+    expect(result.shortResume).toBe('итог');
+    expect(result.conclusions).toEqual(['вывод']);
+    expect(result.keyPoints.length).toBeGreaterThan(2);
+    expect(result.quotes.length).toBe(result.keyPoints.length);
+  });
+
+  it('splits a part that is too large for the provider limit', async () => {
+    let calls = 0;
+    const segments = Array.from({ length: 4 }, (_, i) => ({ start: i * 40, text: 'слово '.repeat(10) }));
+    const result = await summarizeTranscript(
+      async (p) => {
+        calls += 1;
+        if (p.user.length > 200 && !p.user.includes('Часть 1:')) throw Object.assign(new Error('Request too large'), { status: 413 });
+        return answer;
+      },
+      { segments, videoType: 'entertainment', language: 'ru', maxCharsPerRequest: 10_000 },
+    );
+    expect(calls).toBeGreaterThan(2);
     expect(result.shortResume).toBe('ok');
   });
 
-  it('uses map-reduce for long transcripts and retries broken json once', async () => {
-    let n = 0;
-    const segments = Array.from({ length: 10 }, (_, i) => ({ start: i * 40, text: 'слово '.repeat(20) }));
-    const result = await summarizeTranscript(
-      async () => {
-        n += 1;
-        return n === 1 ? 'not json' : answer;
-      },
-      { segments, videoType: 'movie', language: 'ru', maxCharsPerRequest: 300 },
-    );
-    expect(result.detailedNotes).toBe('n');
-    // 1 retry + N частей + 1 merge
-    expect(n).toBeGreaterThan(3);
-  });
-
-  it('renders markdown', () => {
+  it('renders markdown with a type-specific layout', () => {
     const md = summaryToMarkdown(
-      { shortResume: 'S', keyPoints: [{ text: 'K', timestamp: 61 }], detailedNotes: 'D', quotes: [{ text: 'Q', timestamp: 5 }] },
+      { ...emptySummary(), shortResume: 'S', ideas: ['I'], keyPoints: [{ text: 'K', timestamp: 61 }], quotes: [{ text: 'Q', timestamp: 5 }], conclusions: ['C'] },
+      'interview',
       'T',
     );
     expect(md).toContain('# T');
-    expect(md).toContain('- **[01:01]** K');
+    expect(md.indexOf('## Основные идеи')).toBeLessThan(md.indexOf('## Главные цитаты'));
+    expect(md.indexOf('## Выводы')).toBeLessThan(md.indexOf('## Таймкоды'));
+    expect(md).toContain('- [01:01] — K');
     expect(md).toContain('> «Q» — [00:05]');
+  });
+
+  it('builds sections per video type', () => {
+    const s = { ...emptySummary(), shortResume: 'S', ideas: ['I'], keyPoints: [{ text: 'K', timestamp: 1 }], characters: [{ name: 'Нео', role: 'избранный' }], rating: { score: 8, comment: 'хорошо' }, furtherReading: [{ title: 'SICP', why: 'основы' }], example: '```py\nx=1\n```' };
+    expect(buildSummarySections(s, 'movie').map((x) => x.title)).toEqual(['Мысли и идеи', 'О чём фильм', 'Герои', 'Таймкоды', 'Оценка ИИ']);
+    expect(buildSummarySections(s, 'educational').map((x) => x.title)).toEqual(['Главные мысли и идеи', 'О чём видео', 'Таймкоды', 'Помощь от ИИ: что почитать по теме', 'Помощь от ИИ: пример']);
+    expect(buildSummarySections(s, 'entertainment').map((x) => x.title)).toEqual(['Краткая суть', 'Таймкоды']);
   });
 });
 

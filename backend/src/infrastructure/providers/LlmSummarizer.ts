@@ -90,7 +90,7 @@ export class LlmSummarizer implements ISummarizer {
         ...(title ? { title } : {}),
         onProgress: (done, total) => onProgress?.(Math.round((done / total) * 100), total > 1 ? `Пишем конспект: ${done} из ${total}…` : 'Пишем конспект…'),
       });
-      return { ...raw, markdown: summaryToMarkdown(raw, title), videoType, provider: this.config.provider };
+      return { ...raw, markdown: summaryToMarkdown(raw, videoType, title), videoType, provider: this.config.provider };
     } catch (error) {
       if (error instanceof OpenAI.AuthenticationError) {
         throw new SummarizationError(`Ключ ${this.config.provider === 'groq' ? 'Groq' : 'OpenAI'} не подошёл.`, 'INVALID_API_KEY');

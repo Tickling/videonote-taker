@@ -1,4 +1,4 @@
-import { createVideoNote, type VideoNote } from '@domain/entities/VideoNote';
+import { cleanVideoTitle, createVideoNote, type VideoNote } from '@domain/entities/VideoNote';
 import type { INoteRepository } from '@domain/ports/INoteRepository';
 import type { ILogger } from '@domain/ports/ILogger';
 import type { ITranscriptionService, ProgressListener } from '@domain/ports/ITranscriptionService';
@@ -38,7 +38,7 @@ export class TranscribeVideoUseCase {
 
     const existing = await this.notes.findById(videoUrl.getKey());
     const { title: resultTitle, ...transcript } = result;
-    const title = resultTitle?.trim() || command.title?.trim() || existing?.title;
+    const title = cleanVideoTitle(resultTitle ?? '') || cleanVideoTitle(command.title ?? '') || existing?.title;
     const now = new Date();
     const note: VideoNote = existing
       ? {

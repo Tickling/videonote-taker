@@ -2,6 +2,7 @@ import type { VideoNote } from '@domain/entities/VideoNote';
 import type { IMarkdownExporter } from '@domain/ports/IDocumentExporter';
 import { Timestamp } from '@domain/valueObjects/Timestamp';
 import { PLATFORM_LABELS, SUMMARY_PROVIDER_LABELS, TRANSCRIPT_SOURCE_LABELS, VIDEO_TYPE_LABELS } from './labels';
+import { summarySections, type SummarySection } from './summaryView';
 
 /** Заменяет [ММ:СС] в тексте на ссылки на момент видео. */
 export function linkTimecodes(text: string, note: VideoNote): string {
@@ -30,17 +31,8 @@ export class MarkdownExporter implements IMarkdownExporter {
     if (note.summary) out.push(`- **Конспект:** ${SUMMARY_PROVIDER_LABELS[note.summary.provider]}`);
     out.push('');
 
-    const s = note.summary;
-    if (s) {
-      if (s.shortResume) out.push('## Кратко', '', s.shortResume, '');
-      if (s.keyPoints.length) {
-        out.push('## Ключевые моменты', '', ...s.keyPoints.map((k) => `- ${link(k.timestamp)} ${k.text}`), '');
-      }
-      if (s.detailedNotes) out.push('## Подробный конспект', '', linkTimecodes(s.detailedNotes, note), '');
-      if (s.quotes.length) {
-        out.push('## Цитаты', '');
-        for (const q of s.quotes) out.push(`> «${q.text}» — ${link(q.timestamp)}`, '');
-      }
+    if (note.summary) {
+      for (const section of summarySections(note.summary)) out.push(...this.section(section, note, link));
     }
 
     if (note.screenshots.length) {
@@ -49,12 +41,39 @@ export class MarkdownExporter implements IMarkdownExporter {
         out.push(`### ${link(shot.timestamp)}${shot.comment ? ` — ${shot.comment}` : ''}`, '', `![Скриншот ${shot.timestamp.format()}](${shot.imageData})`, '');
       }
     }
-
-    if (note.transcript.segments.length) {
-      out.push('## Транскрипт', '');
-      for (const seg of note.transcript.segments) out.push(`${link(seg.start)} ${seg.text}  `);
-      out.push('');
-    }
     return out.join('\n');
+  }
+
+  private section(section: SummarySection, note: VideoNote, link: (t: Timestamp) => string): string[] {
+    const at = (seconds: number): string => link(Timestamp.of(seconds));
+    const out = [`## ${section.title}`, ''];
+    switch (section.kind) {
+      case 'text':
+        out.push(section.text);
+        break;
+      case 'markdown':
+        out.push(linkTimecodes(section.text, note));
+        break;
+      case 'list':
+        out.push(...section.items.map((i) => `- ${i}`));
+        break;
+      case 'timecodes':
+        out.push(...section.items.map((i) => `- ${at(i.timestamp)} — ${i.text}`));
+        break;
+      case 'quotes':
+        for (const q of section.items) out.push(`> «${q.text}» — ${at(q.timestamp)}`, '');
+        break;
+      case 'characters':
+        out.push(...section.items.map((c) => `- **${c.name}**${c.role ? ` — ${c.role}` : ''}`));
+        break;
+      case 'reading':
+        out.push(...section.items.map((r) => `- **${r.title}**${r.why ? ` — ${r.why}` : ''}`));
+        break;
+      case 'rating':
+        out.push(`**${section.score} / 10**${section.comment ? ` — ${section.comment}` : ''}`);
+        break;
+    }
+    out.push('');
+    return out;
   }
 }

@@ -1,4 +1,4 @@
-import type { VideoTypeId } from '@shared/summaryContract.js';
+import type { RawSummary, VideoTypeId } from '@shared/summaryContract.js';
 
 export type { VideoTypeId };
 export type TranscriptionMode = 'auto' | 'subtitles' | 'whisper' | 'local_whisper';
@@ -25,12 +25,8 @@ export interface TimedItem {
   timestamp: number;
 }
 
-export interface SummaryResult {
+export interface SummaryResult extends RawSummary {
   markdown: string;
-  shortResume: string;
-  keyPoints: TimedItem[];
-  detailedNotes: string;
-  quotes: TimedItem[];
   videoType: VideoTypeId;
   provider: SummaryProviderId;
 }

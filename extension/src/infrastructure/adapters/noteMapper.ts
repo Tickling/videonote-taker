@@ -1,5 +1,6 @@
 import type { Screenshot } from '@domain/entities/Screenshot';
 import type { Summary } from '@domain/entities/Summary';
+import { cleanVideoTitle } from '@domain/entities/VideoNote';
 import type { VideoNote } from '@domain/entities/VideoNote';
 import { SummaryProvider, type TranscriptSource } from '@domain/valueObjects/Providers';
 import { Timestamp } from '@domain/valueObjects/Timestamp';
@@ -30,6 +31,12 @@ export interface VideoNoteDto {
     videoType: string;
     provider: string;
     createdAt?: string;
+    ideas?: string[];
+    conclusions?: string[];
+    characters?: Array<{ name: string; role: string }>;
+    rating?: { score: number; comment: string } | null;
+    furtherReading?: Array<{ title: string; why: string }>;
+    example?: string;
   } | null;
   screenshots: Array<{
     id: string;
@@ -73,6 +80,12 @@ export function toDto(note: VideoNote): VideoNoteDto {
           videoType: note.summary.videoType,
           provider: note.summary.provider,
           ...(note.summary.createdAt ? { createdAt: note.summary.createdAt.toISOString() } : {}),
+          ideas: note.summary.ideas ?? [],
+          conclusions: note.summary.conclusions ?? [],
+          characters: note.summary.characters ?? [],
+          rating: note.summary.rating ?? null,
+          furtherReading: note.summary.furtherReading ?? [],
+          example: note.summary.example ?? '',
         }
       : null,
     screenshots: note.screenshots.map((s) => ({
@@ -96,6 +109,12 @@ function toSummary(dto: NonNullable<VideoNoteDto['summary']>): Summary {
     videoType: isVideoType(dto.videoType) ? dto.videoType : VideoType.EDUCATIONAL,
     provider: dto.provider === SummaryProvider.OPENAI_GPT4O ? SummaryProvider.OPENAI_GPT4O : SummaryProvider.GROQ,
     ...(dto.createdAt ? { createdAt: new Date(dto.createdAt) } : {}),
+    ideas: dto.ideas ?? [],
+    conclusions: dto.conclusions ?? [],
+    characters: dto.characters ?? [],
+    rating: dto.rating ?? null,
+    furtherReading: dto.furtherReading ?? [],
+    example: dto.example ?? '',
   };
 }
 
@@ -114,7 +133,7 @@ export function fromDto(dto: VideoNoteDto): VideoNote | null {
   return {
     id: dto.id,
     videoUrl,
-    title: dto.title,
+    title: cleanVideoTitle(dto.title) || dto.title,
     videoType: isVideoType(dto.videoType) ? dto.videoType : VideoType.EDUCATIONAL,
     platform: videoUrl.getPlatform(),
     createdAt: new Date(dto.createdAt),

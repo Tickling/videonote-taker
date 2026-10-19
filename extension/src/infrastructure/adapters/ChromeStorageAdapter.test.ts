@@ -29,7 +29,7 @@ describe('ChromeStorageNoteRepository', () => {
     const storage = memoryStorage();
     const repo = new ChromeStorageNoteRepository(storage);
     const note = {
-      ...createVideoNote({ videoUrl: new VideoUrl('https://youtu.be/dQw4w9WgXcQ'), title: 'T', videoType: VideoType.INTERVIEW, language: 'ru' }),
+      ...createVideoNote({ videoUrl: new VideoUrl('https://youtu.be/dQw4w9WgXcQ'), title: '(15) T - YouTube', videoType: VideoType.INTERVIEW, language: 'ru' }),
       transcript: { source: 'whisper' as const, totalDuration: 10, segments: [{ id: 's', text: 'x', start: new Timestamp(1), end: new Timestamp(2), confidence: 0.9 }] },
       summary: {
         shortResume: 'S',
@@ -39,6 +39,12 @@ describe('ChromeStorageNoteRepository', () => {
         videoType: VideoType.INTERVIEW,
         provider: SummaryProvider.OPENAI_GPT4O,
         createdAt: new Date('2026-01-01T00:00:00Z'),
+        ideas: ['идея'],
+        conclusions: ['вывод'],
+        characters: [{ name: 'Нео', role: 'избранный' }],
+        rating: { score: 8, comment: 'хорошо' },
+        furtherReading: [{ title: 'SICP', why: 'основы' }],
+        example: 'x = 1',
       },
       screenshots: [{ id: 'p', imageData: 'data:', timestamp: new Timestamp(3), comment: 'c', linkedSegmentId: 's', width: 10, height: 5 }],
     };
@@ -46,6 +52,7 @@ describe('ChromeStorageNoteRepository', () => {
     expect(Object.keys(storage.data)).toEqual(['note:youtube_dQw4w9WgXcQ']);
     const loaded = await repo.findById(note.id);
     expect(loaded).toEqual(note);
+    expect(loaded?.title).toBe('T');
     expect(await repo.findAll()).toHaveLength(1);
     await repo.delete(note.id);
     expect(await repo.findById(note.id)).toBeNull();

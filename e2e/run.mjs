@@ -24,21 +24,32 @@ const check = (name, ok, extra = '') => {
 
 // ---------- поддельный Groq (OpenAI-совместимый) ----------
 const SUMMARY = {
+  ideas: [
+    'Переменная — имя, ссылающееся на значение; тип определяется автоматически',
+    'Отступы — часть синтаксиса Python',
+    'Хорошая функция делает одну вещь и имеет понятное имя',
+  ],
   shortResume: 'Вводный урок по Python: переменные, типы данных, списки, условия, циклы и функции. Главная мысль — пишите понятный код, ведь его читают чаще, чем пишут.',
-  keyPoints: [
-    { text: 'Переменная — имя, ссылающееся на значение; тип определяется автоматически', timestamp: 3.5 },
-    { text: 'Основные типы: int, float, str, bool', timestamp: 14 },
-    { text: 'Индексы списков начинаются с нуля', timestamp: 24.5 },
-    { text: 'Отступы — часть синтаксиса Python', timestamp: 31.5 },
-    { text: 'for перебирает элементы, while работает пока условие истинно', timestamp: 35 },
-    { text: 'Функции объявляются через def и делают одну вещь', timestamp: 42 },
+  timecodes: [
+    { text: 'Переменные', timestamp: 3.5 },
+    { text: 'Типы данных: int, float, str, bool', timestamp: 14 },
+    { text: 'Списки и индексы с нуля', timestamp: 24.5 },
+    { text: 'Условия и отступы', timestamp: 28 },
+    { text: 'Циклы for и while', timestamp: 35 },
+    { text: 'Функции', timestamp: 42 },
   ],
-  detailedNotes:
-    '## [00:03] Переменные\n- **Переменная** — имя, которое ссылается на значение\n- Тип указывать не нужно: `x = 5`\n\n## [00:14] Типы данных\n- **int**, **float**, **str**, **bool**\n- Строки — в одинарных или двойных кавычках\n\n## [00:21] Списки\n1. Хранят значения по порядку\n2. Нумерация с нуля\n\n## [00:28] Условия и циклы\n- `if` выполняет блок, если условие истинно\n- Отступы обязательны\n- `for` — перебор, `while` — пока условие истинно\n\n## [00:42] Функции\n```python\ndef total(items):\n    return sum(items)\n```\n\n## Вопросы для самопроверки\n1. С какого индекса начинается список?\n2. Чем for отличается от while?',
-  quotes: [
-    { text: 'Код читают чаще, чем пишут — поэтому пишите понятно', timestamp: 49 },
-    { text: 'Хорошая функция делает одну вещь', timestamp: 45.5 },
+  furtherReading: [
+    { title: 'Марк Лутц «Изучаем Python»', why: 'подробно про типы и функции' },
+    { title: 'docs.python.org/3/tutorial', why: 'официальный учебник' },
   ],
+  example: 'Функция, которая считает сумму списка:\n```python\ndef total(items):\n    return sum(items)\n\nprint(total([1, 2, 3]))  # 6\n```',
+};
+const INTERVIEW = {
+  ideas: ['Интервью-версия конспекта.'],
+  quotes: [{ text: 'Код читают чаще, чем пишут', timestamp: 49 }],
+  conclusions: ['Пишите понятный код'],
+  timecodes: SUMMARY.timecodes,
+  shortResume: 'Беседа о Python',
 };
 const llmCalls = [];
 const llm = createServer((req, res) => {
@@ -61,7 +72,7 @@ const llm = createServer((req, res) => {
         return res.end(JSON.stringify({ error: { message: `The model \`${model}\` does not exist or you do not have access to it.`, type: 'invalid_request_error', code: 'model_not_found' } }));
       }
       const isInterview = body.includes('ИНТЕРВЬЮ');
-      return res.end(JSON.stringify({ id: 'c', object: 'chat.completion', created: 0, model: 'llama-3.3-70b-versatile', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(isInterview ? { ...SUMMARY, shortResume: 'Интервью-версия конспекта.' } : SUMMARY) } }] }));
+      return res.end(JSON.stringify({ id: 'c', object: 'chat.completion', created: 0, model: 'llama-3.3-70b-versatile', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(isInterview ? INTERVIEW : SUMMARY) } }] }));
     }
     res.statusCode = 404;
     res.end('{}');
@@ -239,7 +250,7 @@ check('кнопка расширения на странице видео', true
 await launcher.click();
 const sidebar = page.frameLocator('#videonote-taker-root iframe.panel');
 await sidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
-await sidebar.getByText('Ключевые моменты').waitFor({ timeout: 30000 });
+await sidebar.getByText('Помощь от ИИ: что почитать по теме', { exact: true }).waitFor({ timeout: 30000 });
 check('конспект создан (субтитры YouTube из браузера + Groq)', ytCalls.includes('get_transcript P_lesson0001'), ytCalls.join(' | '));
 const triedModels = llmCalls.filter((c) => c.path === 'model').map((c) => c.auth);
 check('отключённая модель Groq → автоматически выбрана доступная', triedModels[0] === 'openai/gpt-oss-120b' && triedModels.includes('openai/gpt-oss-20b'), [...new Set(triedModels)].join(' → '));
@@ -279,7 +290,7 @@ const { path: docxPath, name: docxName } = await nextDownload(() => sidebar.getB
 const zip = await JSZip.loadAsync(readFileSync(docxPath));
 const xml = await zip.file('word/document.xml').async('string');
 const media = Object.keys(zip.files).filter((f) => f.startsWith('word/media/') && !zip.files[f].dir).length;
-check('экспорт Word: текст, конспект, скриншоты', xml.includes('Основы Python') && xml.includes('Ключевые моменты') && media === 2 && docxName === 'Основы Python за 10 минут.docx', `${docxName}, картинок: ${media}`);
+check('экспорт Word: разделы обучающего видео, скриншоты, без транскрипта', xml.includes('Основы Python') && xml.includes('Помощь от ИИ: пример') && !xml.includes('Начнём с переменных') && media === 2 && docxName === 'Основы Python за 10 минут.docx', `${docxName}, картинок: ${media}`);
 copyFileSync(docxPath, join(out, 'example.docx'));
 const { path: mdPath, name: mdName } = await nextDownload(() => sidebar.getByRole('button', { name: 'Markdown' }).click());
 const md = readFileSync(mdPath, 'utf8');
@@ -291,7 +302,8 @@ await sidebar.getByRole('tab', { name: 'Конспект' }).click();
 await sidebar.getByLabel('Тип видео для пересоздания').selectOption('interview');
 await sidebar.getByRole('button', { name: /Пересоздать/ }).click();
 await sidebar.getByText('Интервью-версия конспекта.').waitFor({ timeout: 15000 });
-check('пересоздание конспекта с другим типом видео', true);
+check('пересоздание как «Интервью»: идеи, цитаты, выводы, таймкоды', (await sidebar.getByText('Выводы', { exact: true }).count()) === 1 && (await sidebar.getByText('Главные цитаты', { exact: true }).count()) === 1);
+await page.screenshot({ path: join(out, '3b-sidebar-interview.png') });
 
 // Real-time без Whisper → понятное объяснение
 await sidebar.getByRole('button', { name: /Запись в реальном времени/ }).click();
@@ -306,7 +318,7 @@ await capturePage.bringToFront();
 await capturePage.locator('#videonote-taker-root .launcher').click();
 const captureSidebar = capturePage.frameLocator('#videonote-taker-root iframe.panel');
 await captureSidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
-await captureSidebar.getByText('Ключевые моменты').waitFor({ timeout: 30000 });
+await captureSidebar.getByText('Таймкоды', { exact: true }).waitFor({ timeout: 30000 });
 await captureSidebar.getByRole('tab', { name: /Транскрипт/ }).click();
 await captureSidebar.getByText('Перехвачено у плеера: первая фраза').waitFor({ timeout: 10000 });
 const ccState = await capturePage.locator('.ytp-subtitles-button').getAttribute('aria-pressed');

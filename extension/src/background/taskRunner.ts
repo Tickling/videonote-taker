@@ -15,8 +15,38 @@ export function toErrorPayload(error: unknown): { code: string; message: string 
 /** Фоновые задачи «транскрипт + конспект»: состояние пишется в storage, UI подписывается. */
 export class TaskRunner {
   private readonly running = new Set<string>();
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly c: Container) {}
+
+  /**
+   * Chrome усыпляет service worker после 30 с без вызовов API расширения — например, пока
+   * ждём ответа ИИ или паузы из-за лимита Groq. Пока идут задачи, раз в 20 с «трогаем» API
+   * и обновляем отметку времени задачи (по ней экран отличает живую задачу от прерванной).
+   */
+  private track(noteId: string, work: Promise<void>): void {
+    this.running.add(noteId);
+    this.heartbeat ??= setInterval(() => void this.beat(), 20_000);
+    void work.finally(() => {
+      this.running.delete(noteId);
+      if (this.running.size === 0 && this.heartbeat) {
+        clearInterval(this.heartbeat);
+        this.heartbeat = null;
+      }
+    });
+  }
+
+  private async beat(): Promise<void> {
+    await chrome.runtime.getPlatformInfo();
+    const keys = [...this.running].map(taskKey);
+    const stored = await chrome.storage.local.get(keys);
+    const updates: Record<string, TaskState> = {};
+    for (const key of keys) {
+      const task = stored[key] as TaskState | undefined;
+      if (task?.status === 'running') updates[key] = { ...task, updatedAt: Date.now() };
+    }
+    if (Object.keys(updates).length > 0) await chrome.storage.local.set(updates);
+  }
 
   isRunning(noteId: string): boolean {
     return this.running.has(noteId);
@@ -25,15 +55,13 @@ export class TaskRunner {
   async createNote(params: { url: string; language: string; videoType: VideoType; title?: string }): Promise<string> {
     const noteId = new VideoUrl(params.url).getKey();
     if (this.running.has(noteId)) return noteId;
-    this.running.add(noteId);
-    void this.runCreate(noteId, params).finally(() => this.running.delete(noteId));
+    this.track(noteId, this.runCreate(noteId, params));
     return noteId;
   }
 
   async generateSummary(params: { noteId: string; videoType?: VideoType; language?: string }): Promise<string> {
     if (this.running.has(params.noteId)) return params.noteId;
-    this.running.add(params.noteId);
-    void this.runSummary(params, 0, 100, 'summary').finally(() => this.running.delete(params.noteId));
+    this.track(params.noteId, this.runSummary(params, 0, 100, 'summary'));
     return params.noteId;
   }
 

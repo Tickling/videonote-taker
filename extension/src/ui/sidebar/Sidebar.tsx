@@ -118,6 +118,7 @@ export function Sidebar() {
           summaryBusy={task?.status === 'running'}
           onGenerateSummary={(type) => {
             setStartError(null);
+            setVideoType(type);
             startSummary({ noteId: note.id, videoType: type, language: lang }).catch((e: unknown) => setStartError(errorPayload(e)));
           }}
         />

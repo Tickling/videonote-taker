@@ -14,6 +14,7 @@ import type { VideoNote } from '@domain/entities/VideoNote';
 import type { IDocumentExporter } from '@domain/ports/IDocumentExporter';
 import { Timestamp } from '@domain/valueObjects/Timestamp';
 import { PLATFORM_LABELS, SUMMARY_PROVIDER_LABELS, TRANSCRIPT_SOURCE_LABELS, VIDEO_TYPE_LABELS } from './labels';
+import { summarySections, type SummarySection } from './summaryView';
 
 const MAX_IMAGE_WIDTH = 600; // px в документе
 
@@ -115,7 +116,38 @@ function base64ToBytes(dataUrl: string): { bytes: Uint8Array; type: 'jpg' | 'png
   return { bytes, type: match[1] === 'png' ? 'png' : 'jpg' };
 }
 
+function bullet(children: ParagraphChild[]): Paragraph {
+  return new Paragraph({ bullet: { level: 0 }, children });
+}
+
 export class WordExporter implements IDocumentExporter {
+  private section(section: SummarySection, note: VideoNote): Paragraph[] {
+    const at = (seconds: number): ExternalHyperlink => timeLink(note, Timestamp.of(seconds));
+    switch (section.kind) {
+      case 'text':
+        return [new Paragraph({ children: inlineRuns(section.text, note) })];
+      case 'markdown':
+        return markdownToParagraphs(section.text, note);
+      case 'list':
+        return section.items.map((i) => bullet(inlineRuns(i, note)));
+      case 'timecodes':
+        return section.items.map((i) => new Paragraph({ spacing: { after: 40 }, children: [at(i.timestamp), new TextRun(` — ${i.text}`)] }));
+      case 'quotes':
+        return section.items.map(
+          (q) => new Paragraph({ indent: { left: 480 }, spacing: { after: 120 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: 'F97316', space: 8 } }, children: [new TextRun({ text: `«${q.text}» `, italics: true }), at(q.timestamp)] }),
+        );
+      case 'characters':
+        return section.items.map((c) => bullet([new TextRun({ text: c.name, bold: true }), new TextRun(c.role ? ` — ${c.role}` : '')]));
+      case 'reading':
+        return section.items.map((r) => bullet([new TextRun({ text: r.title, bold: true }), new TextRun(r.why ? ` — ${r.why}` : '')]));
+      case 'rating':
+        return [
+          new Paragraph({ children: [new TextRun({ text: `${section.score} / 10`, bold: true, size: 32, color: 'EA580C' })] }),
+          ...(section.comment ? [new Paragraph({ children: inlineRuns(section.comment, note) })] : []),
+        ];
+    }
+  }
+
   async exportToWord(note: VideoNote): Promise<Blob> {
     const children: Paragraph[] = [];
     const h = (text: string): Paragraph => new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 300 }, children: [new TextRun(text)] });
@@ -134,28 +166,9 @@ export class WordExporter implements IDocumentExporter {
       children.push(new Paragraph({ children: [new TextRun({ text: label, bold: true, color: '64748B' }), value] }));
     }
 
-    const s = note.summary;
-    if (s) {
-      if (s.shortResume) {
-        children.push(h('Кратко'), new Paragraph({ children: inlineRuns(s.shortResume, note) }));
-      }
-      if (s.keyPoints.length) {
-        children.push(h('Ключевые моменты'));
-        for (const k of s.keyPoints) {
-          children.push(new Paragraph({ bullet: { level: 0 }, children: [timeLink(note, k.timestamp), new TextRun(' '), ...inlineRuns(k.text, note)] }));
-        }
-      }
-      if (s.detailedNotes) children.push(h('Подробный конспект'), ...markdownToParagraphs(s.detailedNotes, note));
-      if (s.quotes.length) {
-        children.push(h('Цитаты'));
-        for (const q of s.quotes) {
-          children.push(
-            new Paragraph({
-              indent: { left: 480 },
-              children: [new TextRun({ text: `«${q.text}» `, italics: true }), timeLink(note, q.timestamp)],
-            }),
-          );
-        }
+    if (note.summary) {
+      for (const section of summarySections(note.summary)) {
+        children.push(h(section.title), ...this.section(section, note));
       }
     }
 
@@ -181,13 +194,6 @@ export class WordExporter implements IDocumentExporter {
             children: [timeLink(note, shot.timestamp), new TextRun({ text: shot.comment ? ` ${shot.comment}` : '', italics: true })],
           }),
         );
-      }
-    }
-
-    if (note.transcript.segments.length) {
-      children.push(h('Транскрипт'));
-      for (const seg of note.transcript.segments) {
-        children.push(new Paragraph({ children: [timeLink(note, seg.start), new TextRun(` ${seg.text}`)] }));
       }
     }
 

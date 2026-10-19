@@ -13,8 +13,8 @@ import { loadEnv } from './config/env.js';
 const FAKE_YTDLP = fileURLToPath(new URL('../test/fixtures/fake-yt-dlp.mjs', import.meta.url));
 const SUMMARY = {
   shortResume: 'Урок о переменных.',
-  keyPoints: [{ text: 'Переменные хранят значения', timestamp: 2 }],
-  detailedNotes: '## [00:02] Переменные\n- x = 1',
+  ideas: ['Переменные хранят значения'],
+  timecodes: [{ text: 'Переменные хранят значения', timestamp: 2 }],
   quotes: [{ text: 'привет всем', timestamp: 0 }],
 };
 
@@ -102,7 +102,8 @@ describe('HTTP API', () => {
     expect(job.result.transcript.source).toBe('subtitles');
     expect(job.result.transcript.segments.map((s) => s.text)).toEqual(['привет всем это', 'урок про переменные', 'x = 1 & y = 2']);
     expect(job.result.summary.provider).toBe('groq');
-    expect(job.result.summary.markdown).toContain('## Ключевые моменты');
+    expect(job.result.summary.markdown).toContain('## Таймкоды');
+    expect(job.result.summary.markdown).toContain('## Главные мысли и идеи');
     expect(llmCalls.at(-1)).toEqual({ path: 'chat', auth: 'Bearer gsk_test' });
   });
 

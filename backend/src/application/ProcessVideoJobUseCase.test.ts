@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { emptySummary } from '@shared/summaryContract.js';
 import type { ILogger, ISpeechToText, ISummarizer } from '../domain/ports.js';
 import type { Credentials, Job, Transcript, VideoInfo } from '../domain/types.js';
 import { ProcessVideoJobUseCase, type ProcessVideoDeps } from './ProcessVideoJobUseCase.js';
@@ -96,7 +97,7 @@ describe('ProcessVideoJobUseCase', () => {
 
   it('adds the summary when requested', async () => {
     const summarizer: ISummarizer = {
-      summarize: vi.fn(async () => ({ markdown: '# M', shortResume: 'S', keyPoints: [], detailedNotes: 'D', quotes: [], videoType: 'educational' as const, provider: 'groq' as const })),
+      summarize: vi.fn(async () => ({ ...emptySummary(), markdown: '# M', shortResume: 'S', videoType: 'educational' as const, provider: 'groq' as const })),
     };
     const { d } = deps({ summarizer });
     const result = await new ProcessVideoJobUseCase(d).execute(job({ generateSummary: true }), NO_KEYS, vi.fn());

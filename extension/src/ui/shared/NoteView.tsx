@@ -4,7 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import type { VideoNote } from '@domain/entities/VideoNote';
 import { Timestamp } from '@domain/valueObjects/Timestamp';
 import type { VideoType } from '@domain/valueObjects/VideoType';
-import { PLATFORM_LABELS, SUMMARY_PROVIDER_LABELS, TRANSCRIPT_SOURCE_LABELS, VIDEO_TYPE_LABELS } from '@infrastructure/exporters/labels';
+import { summarySections, type SummarySection } from '@infrastructure/exporters/summaryView';
+import { PLATFORM_LABELS, SUMMARY_PROVIDER_LABELS, TRANSCRIPT_SOURCE_LABELS, VIDEO_TYPE_HINTS, VIDEO_TYPE_LABELS } from '@infrastructure/exporters/labels';
 import { downloadBlob } from './actions';
 import { Button, cx, Tabs } from './components';
 import { useContainer } from './hooks';
@@ -48,6 +49,109 @@ function linkify(markdown: string): string {
   return markdown.replace(/\[(\d{1,2}(?::\d{2}){1,2})\](?!\()/g, (_m, code: string) => `[${code}](#t=${code})`);
 }
 
+const H3 = ({ children }: { children: ReactNode }) => <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</h3>;
+
+function SectionView({
+  section,
+  note,
+  onSeek,
+  markdownLink,
+}: {
+  section: SummarySection;
+  note: VideoNote;
+  onSeek?: (s: number) => void;
+  markdownLink: (props: { href?: string; children?: ReactNode }) => ReactNode;
+}) {
+  const seek = onSeek ? { onSeek } : {};
+  switch (section.kind) {
+    case 'text':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <p className="text-sm leading-relaxed text-slate-800">{section.text}</p>
+        </section>
+      );
+    case 'markdown':
+      return (
+        <section className="prose-note text-sm text-slate-800">
+          <H3>{section.title}</H3>
+          <ReactMarkdown components={{ a: markdownLink }}>{linkify(section.text)}</ReactMarkdown>
+        </section>
+      );
+    case 'list':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-800">
+            {section.items.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      );
+    case 'timecodes':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <ul className="space-y-1.5">
+            {section.items.map((k, i) => (
+              <li key={i} className="flex gap-2 text-sm text-slate-800">
+                <TimeLink seconds={k.timestamp} note={note} {...seek} />
+                <span>{k.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    case 'quotes':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <div className="space-y-2">
+            {section.items.map((q, i) => (
+              <blockquote key={i} className="flex gap-2 border-l-4 border-orange-300 pl-3 text-sm italic text-slate-700">
+                <span className="flex-1">«{q.text}»</span>
+                <TimeLink seconds={q.timestamp} note={note} {...seek} />
+              </blockquote>
+            ))}
+          </div>
+        </section>
+      );
+    case 'characters':
+    case 'reading':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <ul className="space-y-1 text-sm text-slate-800">
+            {section.kind === 'characters'
+              ? section.items.map((c, i) => (
+                  <li key={i}>
+                    <b>{c.name}</b>
+                    {c.role ? ` — ${c.role}` : ''}
+                  </li>
+                ))
+              : section.items.map((r, i) => (
+                  <li key={i}>
+                    📚 <b>{r.title}</b>
+                    {r.why ? ` — ${r.why}` : ''}
+                  </li>
+                ))}
+          </ul>
+        </section>
+      );
+    case 'rating':
+      return (
+        <section>
+          <H3>{section.title}</H3>
+          <p className="text-sm text-slate-800">
+            <span className="mr-2 rounded-lg bg-orange-50 px-2 py-0.5 text-base font-bold text-orange-700">{section.score} / 10</span>
+            {section.comment}
+          </p>
+        </section>
+      );
+  }
+}
+
 function SummaryPanel({ note, onSeek, onGenerateSummary, summaryBusy, header }: Pick<NoteViewProps, 'note' | 'onSeek' | 'onGenerateSummary' | 'summaryBusy'> & { header?: ReactNode }) {
   const [regenType, setRegenType] = useState<VideoType>(note.videoType);
   const s = note.summary;
@@ -83,42 +187,9 @@ function SummaryPanel({ note, onSeek, onGenerateSummary, summaryBusy, header }: 
       )}
       {s && (
         <>
-          <section>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Кратко</h3>
-            <p className="text-sm leading-relaxed text-slate-800">{s.shortResume}</p>
-          </section>
-          {s.keyPoints.length > 0 && (
-            <section>
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Ключевые моменты</h3>
-              <ul className="space-y-1.5">
-                {s.keyPoints.map((k, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-slate-800">
-                    <TimeLink seconds={k.timestamp.seconds} note={note} {...(onSeek ? { onSeek } : {})} />
-                    <span>{k.text}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {s.detailedNotes && (
-            <section className="prose-note text-sm text-slate-800">
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Подробный конспект</h3>
-              <ReactMarkdown components={{ a: markdownLink }}>{linkify(s.detailedNotes)}</ReactMarkdown>
-            </section>
-          )}
-          {s.quotes.length > 0 && (
-            <section>
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Цитаты</h3>
-              <div className="space-y-2">
-                {s.quotes.map((q, i) => (
-                  <blockquote key={i} className="flex gap-2 border-l-4 border-orange-300 pl-3 text-sm italic text-slate-700">
-                    <span className="flex-1">«{q.text}»</span>
-                    <TimeLink seconds={q.timestamp.seconds} note={note} {...(onSeek ? { onSeek } : {})} />
-                  </blockquote>
-                ))}
-              </div>
-            </section>
-          )}
+          {summarySections(s).map((section) => (
+            <SectionView key={section.title} section={section} note={note} markdownLink={markdownLink} {...(onSeek ? { onSeek } : {})} />
+          ))}
           <p className="text-[11px] text-slate-400">
             Конспект: {SUMMARY_PROVIDER_LABELS[s.provider]} · {VIDEO_TYPE_LABELS[s.videoType].label}
           </p>
@@ -131,7 +202,7 @@ function SummaryPanel({ note, onSeek, onGenerateSummary, summaryBusy, header }: 
                 aria-label="Тип видео для пересоздания"
               >
                 {Object.entries(VIDEO_TYPE_LABELS).map(([id, { emoji, label }]) => (
-                  <option key={id} value={id}>
+                  <option key={id} value={id} title={VIDEO_TYPE_HINTS[id as VideoType]}>
                     {emoji} {label}
                   </option>
                 ))}
