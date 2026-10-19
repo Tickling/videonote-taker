@@ -13,7 +13,8 @@ export class OpenAIProvider extends OpenAICompatibleSummaryProvider {
       {
         provider: SummaryProvider.OPENAI_GPT4O,
         keyName: 'openai',
-        model: OPENAI_MODEL,
+        models: [OPENAI_MODEL],
+        discoverModels: false,
         maxCharsPerRequest: 80_000,
         maxOutputTokens: 6_000,
       },

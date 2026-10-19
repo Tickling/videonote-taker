@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { summarizeTranscript } from '@shared/summarize';
 import type { ChatPrompt } from '@shared/prompts';
+import { isJsonModeUnsupported, isModelUnavailable, rankModels, reasoningParams } from '@shared/modelSelection';
 import type { Screenshot } from '@domain/entities/Screenshot';
 import type { Summary } from '@domain/entities/Summary';
 import type { Transcript } from '@domain/entities/Transcript';
@@ -17,7 +18,9 @@ export interface ProviderConfig {
   provider: SummaryProvider;
   keyName: 'groq' | 'openai';
   baseURL?: string;
-  model: string;
+  /** Модели в порядке предпочтения; доступные уточняются у API */
+  models: readonly string[];
+  discoverModels: boolean;
   /** Символов транскрипта на запрос (бесплатный Groq ограничен ~12k токенов/мин) */
   maxCharsPerRequest: number;
   maxOutputTokens: number;
@@ -32,6 +35,26 @@ export abstract class OpenAICompatibleSummaryProvider implements ISummaryService
   ) {}
 
   protected abstract pickKey(settings: UserSettings): string | null;
+
+  private readonly unavailable = new Set<string>();
+  private lastModel: string | null = null;
+  private discovered: { key: string; models: string[]; at: number } | null = null;
+
+  /** Список моделей у провайдера (кэш на час) → кандидаты в порядке предпочтения. */
+  private async candidateModels(client: OpenAI, apiKey: string): Promise<string[]> {
+    if (!this.config.discoverModels) return [...this.config.models];
+    if (!this.discovered || this.discovered.key !== apiKey || Date.now() - this.discovered.at > 3_600_000) {
+      try {
+        const page = await client.models.list();
+        this.discovered = { key: apiKey, models: page.data.map((m) => m.id), at: Date.now() };
+        this.unavailable.clear();
+      } catch (error) {
+        this.logger.warn('models list failed, using defaults', { error: String(error) });
+        return [...this.config.models];
+      }
+    }
+    return rankModels(this.config.models, this.discovered.models);
+  }
 
   async generate(
     transcript: Transcript,
@@ -50,18 +73,42 @@ export abstract class OpenAICompatibleSummaryProvider implements ISummaryService
       timeout: 180_000,
     });
 
+    const candidates = await this.candidateModels(client, apiKey);
     const complete = async (prompt: ChatPrompt): Promise<string> => {
-      const response = await client.chat.completions.create({
-        model: this.config.model,
-        temperature: 0.3,
-        max_tokens: this.config.maxOutputTokens,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: prompt.system },
-          { role: 'user', content: prompt.user },
-        ],
-      });
-      return response.choices[0]?.message.content ?? '';
+      let lastError: unknown = null;
+      for (const model of candidates) {
+        if (this.unavailable.has(model)) continue;
+        for (const jsonMode of [true, false]) {
+          try {
+            const response = await client.chat.completions.create({
+              model,
+              temperature: 0.3,
+              max_tokens: this.config.maxOutputTokens,
+              ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
+              ...reasoningParams(model),
+              messages: [
+                { role: 'system', content: prompt.system },
+                { role: 'user', content: prompt.user },
+              ],
+            });
+            if (this.lastModel !== model) this.logger.info('llm model', { provider: this.config.provider, model });
+            this.lastModel = model;
+            return response.choices[0]?.message.content ?? '';
+          } catch (error) {
+            lastError = error;
+            const status = error instanceof OpenAI.APIError ? error.status : undefined;
+            const message = error instanceof Error ? error.message : String(error);
+            if (jsonMode && isJsonModeUnsupported(status, message)) continue;
+            if (isModelUnavailable(status, message)) {
+              this.logger.warn('model unavailable, trying next', { model, status });
+              this.unavailable.add(model);
+              break;
+            }
+            throw error;
+          }
+        }
+      }
+      throw lastError ?? new Error('Нет доступных моделей');
     };
 
     try {
@@ -96,6 +143,9 @@ export abstract class OpenAICompatibleSummaryProvider implements ISummaryService
             : 'OpenAI: превышен лимит или закончился баланс.',
           'RATE_LIMITED',
         );
+      }
+      if (error instanceof OpenAI.NotFoundError) {
+        throw new SummarizationError('У провайдера ИИ не нашлось подходящей модели. Попробуйте позже или выберите другого провайдера в настройках ⚙️.');
       }
       if (error instanceof OpenAI.APIConnectionError) {
         throw new SummarizationError('Нет соединения с сервисом ИИ. Проверьте интернет и попробуйте снова.');

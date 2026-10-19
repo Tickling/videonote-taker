@@ -94,3 +94,21 @@ describe('shared/summarize', () => {
     expect(md).toContain('> «Q» — [00:05]');
   });
 });
+
+import { isModelUnavailable, rankModels, reasoningParams, GROQ_MODEL_PREFERENCE } from './modelSelection';
+
+describe('shared/modelSelection', () => {
+  it('ranks available models by preference and skips non-chat ones', () => {
+    const available = ['whisper-large-v3', 'llama-3.1-8b-instant', 'openai/gpt-oss-20b', 'zeta/new-model', 'meta-llama/llama-guard-4-12b'];
+    expect(rankModels(GROQ_MODEL_PREFERENCE, available)).toEqual(['openai/gpt-oss-20b', 'llama-3.1-8b-instant', 'zeta/new-model']);
+    expect(rankModels(GROQ_MODEL_PREFERENCE, null)[0]).toBe('openai/gpt-oss-120b');
+  });
+
+  it('detects retired models and reasoning params', () => {
+    expect(isModelUnavailable(404, 'The model `llama-3.3-70b-versatile` does not exist')).toBe(true);
+    expect(isModelUnavailable(400, 'The model x has been decommissioned')).toBe(true);
+    expect(isModelUnavailable(429, 'rate limit')).toBe(false);
+    expect(reasoningParams('openai/gpt-oss-120b')).toEqual({ reasoning_effort: 'low' });
+    expect(reasoningParams('qwen/qwen3.6-27b')).toEqual({});
+  });
+});

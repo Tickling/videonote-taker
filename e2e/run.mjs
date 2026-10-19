@@ -51,8 +51,15 @@ const llm = createServer((req, res) => {
   req.on('end', () => {
     llmCalls.push({ path: req.url, auth: req.headers.authorization });
     res.setHeader('Content-Type', 'application/json');
-    if (req.url.endsWith('/models')) return res.end(JSON.stringify({ object: 'list', data: [{ id: 'llama-3.3-70b-versatile', object: 'model' }] }));
+    // Как в октябре 2026: llama-3.3-70b-versatile отключена, gpt-oss-120b «недоступна» для этого ключа
+    if (req.url.endsWith('/models')) return res.end(JSON.stringify({ object: 'list', data: ['whisper-large-v3', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'].map((id) => ({ id, object: 'model' })) }));
     if (req.url.endsWith('/chat/completions')) {
+      const model = JSON.parse(body || '{}').model;
+      llmCalls.push({ path: 'model', auth: model });
+      if (model !== 'openai/gpt-oss-20b') {
+        res.statusCode = 404;
+        return res.end(JSON.stringify({ error: { message: `The model \`${model}\` does not exist or you do not have access to it.`, type: 'invalid_request_error', code: 'model_not_found' } }));
+      }
       const isInterview = body.includes('ИНТЕРВЬЮ');
       return res.end(JSON.stringify({ id: 'c', object: 'chat.completion', created: 0, model: 'llama-3.3-70b-versatile', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(isInterview ? { ...SUMMARY, shortResume: 'Интервью-версия конспекта.' } : SUMMARY) } }] }));
     }
@@ -234,6 +241,8 @@ const sidebar = page.frameLocator('#videonote-taker-root iframe.panel');
 await sidebar.getByRole('button', { name: /Создать конспект/ }).first().click();
 await sidebar.getByText('Ключевые моменты').waitFor({ timeout: 30000 });
 check('конспект создан (субтитры YouTube из браузера + Groq)', ytCalls.includes('get_transcript P_lesson0001'), ytCalls.join(' | '));
+const triedModels = llmCalls.filter((c) => c.path === 'model').map((c) => c.auth);
+check('отключённая модель Groq → автоматически выбрана доступная', triedModels[0] === 'openai/gpt-oss-120b' && triedModels.includes('openai/gpt-oss-20b'), [...new Set(triedModels)].join(' → '));
 await page.screenshot({ path: join(out, '3-sidebar-summary.png') });
 
 // Клик по таймкоду перематывает видео

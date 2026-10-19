@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { ChatPrompt } from '@shared/prompts.js';
 import { summarizeTranscript } from '@shared/summarize.js';
 import { summaryToMarkdown } from '@shared/summaryMarkdown.js';
+import { GROQ_MODEL_PREFERENCE, isJsonModeUnsupported, isModelUnavailable, rankModels, reasoningParams } from '@shared/modelSelection.js';
 import { AppError, SummarizationError } from '../../domain/errors.js';
 import type { ILogger, ISummarizer, ISummarizerFactory } from '../../domain/ports.js';
 import type { Credentials, ProgressReporter, SummaryProviderId, SummaryResult, Transcript, VideoTypeId } from '../../domain/types.js';
@@ -12,7 +13,8 @@ interface LlmConfig {
   provider: SummaryProviderId;
   apiKey: string;
   baseURL?: string | undefined;
-  model: string;
+  models: readonly string[];
+  discoverModels: boolean;
   maxCharsPerRequest: number;
   maxOutputTokens: number;
 }
@@ -28,21 +30,55 @@ export class LlmSummarizer implements ISummarizer {
     this.client = new OpenAI({ apiKey: config.apiKey, maxRetries: 6, timeout: 180_000, ...(config.baseURL ? { baseURL: config.baseURL } : {}) });
   }
 
+  private async candidateModels(): Promise<string[]> {
+    if (!this.config.discoverModels) return [...this.config.models];
+    try {
+      const page = await this.client.models.list();
+      return rankModels(this.config.models, page.data.map((m) => m.id));
+    } catch (error) {
+      this.logger.warn({ err: String(error) }, 'models list failed, using defaults');
+      return [...this.config.models];
+    }
+  }
+
   async summarize(transcript: Transcript, videoType: VideoTypeId, language: string, title: string | undefined, onProgress?: ProgressReporter): Promise<SummaryResult> {
+    const candidates = await this.candidateModels();
+    const unavailable = new Set<string>();
     const complete = async (prompt: ChatPrompt): Promise<string> => {
-      const started = Date.now();
-      const response = await this.client.chat.completions.create({
-        model: this.config.model,
-        temperature: 0.3,
-        max_tokens: this.config.maxOutputTokens,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: prompt.system },
-          { role: 'user', content: prompt.user },
-        ],
-      });
-      this.logger.info({ provider: this.config.provider, ms: Date.now() - started, tokens: response.usage?.total_tokens }, 'llm call');
-      return response.choices[0]?.message.content ?? '';
+      let lastError: unknown = null;
+      for (const model of candidates) {
+        if (unavailable.has(model)) continue;
+        for (const jsonMode of [true, false]) {
+          const started = Date.now();
+          try {
+            const response = await this.client.chat.completions.create({
+              model,
+              temperature: 0.3,
+              max_tokens: this.config.maxOutputTokens,
+              ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
+              ...reasoningParams(model),
+              messages: [
+                { role: 'system', content: prompt.system },
+                { role: 'user', content: prompt.user },
+              ],
+            });
+            this.logger.info({ provider: this.config.provider, model, ms: Date.now() - started, tokens: response.usage?.total_tokens }, 'llm call');
+            return response.choices[0]?.message.content ?? '';
+          } catch (error) {
+            lastError = error;
+            const status = error instanceof OpenAI.APIError ? error.status : undefined;
+            const message = error instanceof Error ? error.message : String(error);
+            if (jsonMode && isJsonModeUnsupported(status, message)) continue;
+            if (isModelUnavailable(status, message)) {
+              this.logger.warn({ model, status }, 'model unavailable, trying next');
+              unavailable.add(model);
+              break;
+            }
+            throw error;
+          }
+        }
+      }
+      throw lastError ?? new Error('Нет доступных моделей');
     };
 
     try {
@@ -79,14 +115,14 @@ export class SummarizerFactory implements ISummarizerFactory {
   create(credentials: Credentials): ISummarizer | null {
     if (credentials.summaryProvider === 'gpt4o' && credentials.openaiApiKey) {
       return new LlmSummarizer(
-        { provider: 'gpt4o', apiKey: credentials.openaiApiKey, baseURL: this.baseUrls.openai, model: 'gpt-4o', maxCharsPerRequest: 80_000, maxOutputTokens: 6_000 },
+        { provider: 'gpt4o', apiKey: credentials.openaiApiKey, baseURL: this.baseUrls.openai, models: ['gpt-4o'], discoverModels: false, maxCharsPerRequest: 80_000, maxOutputTokens: 6_000 },
         this.logger,
       );
     }
     const groqKey = credentials.groqApiKey ?? this.defaultGroqKey;
     if (!groqKey) return null;
     return new LlmSummarizer(
-      { provider: 'groq', apiKey: groqKey, baseURL: this.baseUrls.groq ?? GROQ_BASE_URL, model: 'llama-3.3-70b-versatile', maxCharsPerRequest: 14_000, maxOutputTokens: 3_000 },
+      { provider: 'groq', apiKey: groqKey, baseURL: this.baseUrls.groq ?? GROQ_BASE_URL, models: GROQ_MODEL_PREFERENCE, discoverModels: true, maxCharsPerRequest: 10_000, maxOutputTokens: 3_500 },
       this.logger,
     );
   }
