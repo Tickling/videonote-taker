@@ -33,7 +33,7 @@ function NewNoteScreen() {
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
       if (tab?.url && VideoUrl.isSupported(tab.url)) {
         setUrl(tab.url);
-        setTitle(tab.title?.replace(/\s*[-|—]\s*(YouTube|RUTUBE|VK.*)$/i, ''));
+        setTitle(tab.title?.replace(/^\(\d+\)\s*/, '').replace(/\s*[-|—]\s*(YouTube|RUTUBE|VK.*)$/i, ''));
         setActiveTabId(tab.id ?? null);
       }
     });

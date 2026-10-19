@@ -58,6 +58,17 @@ describe('TranscribeVideoUseCase', () => {
     expect(again.createdAt).toEqual(note.createdAt);
   });
 
+  it('prefers the title from the video source over the tab title', async () => {
+    const transcription = new StubTranscription(async () => ({ ...transcriptOf([0, 'a']), title: 'Настоящее название' }));
+    const note = await new TranscribeVideoUseCase(transcription, new InMemoryNoteRepository(), silentLogger).execute({
+      url: URL_A,
+      language: 'ru',
+      videoType: VideoType.EDUCATIONAL,
+      title: '(15) Заголовок вкладки',
+    });
+    expect(note.title).toBe('Настоящее название');
+  });
+
   it('rejects unsupported urls', async () => {
     const uc = new TranscribeVideoUseCase(new StubTranscription(async () => transcriptOf()), new InMemoryNoteRepository(), silentLogger);
     await expect(uc.execute({ url: 'https://example.com', language: 'ru', videoType: VideoType.MOVIE })).rejects.toThrow(/не поддерживается/);

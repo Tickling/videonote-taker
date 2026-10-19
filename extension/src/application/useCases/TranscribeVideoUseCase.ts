@@ -38,7 +38,7 @@ export class TranscribeVideoUseCase {
 
     const existing = await this.notes.findById(videoUrl.getKey());
     const { title: resultTitle, ...transcript } = result;
-    const title = command.title?.trim() || resultTitle || existing?.title;
+    const title = resultTitle?.trim() || command.title?.trim() || existing?.title;
     const now = new Date();
     const note: VideoNote = existing
       ? {
