@@ -5,7 +5,11 @@
 **Бесплатно по умолчанию** — автосубтитры через `yt-dlp` + Groq (`openai/gpt-oss-120b`; модель выбирается автоматически из доступных).
 **Мощно по желанию** — OpenAI Whisper и GPT-4o по собственному ключу или локальный whisper.cpp.
 
-## Для пользователя: установка
+## Установка из Chrome Web Store
+
+**[Установить VideoNote Taker](https://chromewebstore.google.com/detail/videonote-taker/ciifgegjlgafhdijaalnkdkmghninjgl)** — в один клик, для YouTube. Сервер не нужен: достаточно бесплатного ключа Groq (инструкция встроена в расширение).
+
+## Полная версия (YouTube, Rutube, VK Видео + локальный сервер)
 
 Готовый архив собирается командой `npm run release` → `release/VideoNote-Taker.zip`.
 Внутри — `README.txt` с пошаговой инструкцией:
